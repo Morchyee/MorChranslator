@@ -55,3 +55,16 @@ test("Production and preview mount the same desktop app instead of bypassing sta
     assert.doesNotMatch(preview, /<DesktopSettings/);
     assert.match(preview, /send_app_state/);
 });
+
+test("Each reopened Photino window starts with its own DPI initialization guard", () => {
+    const program = readFileSync(new URL("../../Program.cs", import.meta.url), "utf8");
+    assert.doesNotMatch(program, /static\s+bool\s+windowInitialized/);
+    assert.match(program, /else connector.WindowHandle\?\.SetMinimized\(false\);/);
+    assert.match(program, /RegisterWindowClosingHandler[^}]+isExiting\?\.Invoke\(\) != false[^}]+window.SetMinimized\(true\);[^}]+return true;/);
+    const settings = program.slice(program.indexOf("private static void ShowSettingsWindow("), program.indexOf("static void UpdateResolution("));
+    assert.match(settings, /bool windowInitialized = false;/);
+    assert.ok(settings.indexOf("bool windowInitialized = false;") < settings.indexOf("new PhotinoWindow()"));
+    assert.match(settings, /WindowCreated[\s\S]*windowInitialized = true;/);
+    for (const event of ["WindowSizeChanged", "WindowLocationChanged"])
+        assert.match(settings, new RegExp(event + "[^}]+if \\(windowInitialized\\) UpdateResolution\\(window\\);"));
+});

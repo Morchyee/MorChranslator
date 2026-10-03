@@ -17,7 +17,6 @@ public class Program
     private static int minHeight = 600;
 
     private static double oldRatio;
-    private static bool windowInitialized;
 
     [STAThread]
     public static void Main(string[] args)
@@ -99,13 +98,14 @@ public class Program
                         {
                             settingsThread = new Thread(() =>
                             {
-                                try { ShowSettingsWindow(appUrl, connector, messageHandler); }
+                                try { ShowSettingsWindow(appUrl, connector, messageHandler, () => exit.Task.IsCompleted); }
                                 catch (Exception e) { Log.Error("[SETTINGS] Window failed: {ErrorType}", e.GetType().Name); }
                             });
                             settingsThread.IsBackground = true;
                             settingsThread.SetApartmentState(ApartmentState.STA);
                             settingsThread.Start();
                         }
+                        else connector.WindowHandle?.SetMinimized(false);
                         break;
                     case "exit": exit.TrySetResult(); break;
                 }
@@ -131,8 +131,9 @@ public class Program
         ShowSettingsWindow(appUrl, connector, messageHandler);
     }
 
-    private static void ShowSettingsWindow(string appUrl, Connector connector, MessageHandler messageHandler)
+    private static void ShowSettingsWindow(string appUrl, Connector connector, MessageHandler messageHandler, Func<bool>? isExiting = null)
     {
+        bool windowInitialized = false;
         string windowTitle = AppConfig.ConfigObject.DesktopTranslation ? "Desktop Translator" : "Kikitan Translator (Legacy)";
 
         var iconFile = OperatingSystem.IsWindows() ? "kikitan_logo.ico" : "icon.png";
@@ -159,6 +160,14 @@ public class Program
             })
             .Load(appUrl);
         
+        // Photino starts one native message loop per process. Retain the settings
+        // window on user close so reopening does not create an unpumped window.
+        window.RegisterWindowClosingHandler((_, _) =>
+        {
+            if (isExiting?.Invoke() != false) return false;
+            window.SetMinimized(true);
+            return true;
+        });
         window.WindowCreated += (_, _) =>
         {
             UpdateResolution(window);
