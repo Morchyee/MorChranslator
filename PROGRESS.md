@@ -17,7 +17,9 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 
 1. **Completed: speech segmentation reliability.** Added 200 ms bounded pre-roll, 360 ms silence hangover, 240 ms minimum voiced content and an exact 20-second segment cap. Preserve brief pauses and onset audio; Stop discards incomplete speech. Clear Silero stack padding explicitly and set recognition language before starting capture.
 2. **Completed: actionable setup guidance.** Localized missing-key guidance respects selected speech/translation providers, shared Groq keys, transcription-only and combined Gemini operation. Actions navigate and focus the key field. Alt+1–5 switches settings sections outside text entry; listeners are removed on unmount. No new dependencies or configuration migration.
-3. **Active: validation and delivery.** Package inspection, documentation and release assessment. Hardware/cloud/soak checks remain separate.
+3. **Completed: validation and delivery.** Self-contained package, native rendering test, content verification, technical changelog and prioritized release assessment. Hardware/cloud/soak checks remain separate.
+
+**Current active milestone: none.** This session is at a validated stopping point. The overall production-readiness objective remains incomplete; continue with the prioritized acceptance work below.
 
 ## Verification strategy
 
@@ -30,6 +32,7 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 - `PROGRESS.md`, `docs/modernization-baseline-files.txt`.
 - `KikitanTranslator.Base/Recognizers/SpeechSegmenter.cs`, `GroqRecognizer.cs`, `KikitanTranslator.Base/Utility/Silero.cs`, `tests/DesktopTranslator.Tests/Program.cs`.
 - UI `SetupGuidance.tsx`, `useSettingsShortcuts.ts`, `DesktopSettings.tsx`, `desktop.css`, three locale catalogs and `tests/setup-guidance.test.mjs`.
+- `docs/MODERNIZATION_2026-10-11.md`: detailed changelog, current architecture, validation, tradeoffs and prioritized next work.
 
 ## Milestone 1 validation
 
@@ -47,6 +50,18 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 - Chrome screenshot tooling stalled; terminated that tool execution and completed visual/interaction checks in Codex's in-app browser using development-only fixtures.
 - Whole working-tree `git diff --check`: passed. Baseline files remain uncommitted.
 
+## Milestone 3 validation and deliverable
+
+- `./scripts/build-release.ps1 -Version 2.0.2-alpha.20261011 -SkipInstall`: passed with approved execution. Repeated frontend 26/26 and C# 24/24 regressions, built/published self-contained win-x64 executables, verified frontend hashes and required assets, ran native subtitle self-test and wrote SHA-256 manifest.
+- Native result: `PASS subtitle window rendering, update, history and scroll checks`.
+- Package: `F:\Program\kikitan-translator\release\DesktopTranslator-2.0.2-alpha.20261011-win-x64`.
+- Double-click: `DesktopTranslator.exe` in that complete directory. WebView2 remains required.
+- Final contents: **18 files / 245,716,553 bytes / 234.33 MiB**, including host, subtitle executable, current frontend, Silero model, icons, ONNX support libraries, README/license/docs and manifest. No previous package overwritten.
+- Product version inspected: `2.0.2-alpha.20261011+9f026014284e20881c0d10e5ddac72f2e4ad2bf2`.
+- Final independent manifest check: all 17 entries match SHA-256; verifier re-run passed on all 18 files (manifest excluded from hashing itself).
+- Known credential-pattern/content verifier passed; this is not proof against all possible secrets. Real packaged Photino startup, live providers/audio, mixed DPI, signing and clean-machine tests were not executed this session.
+- Exact set of pre-existing modified/deleted tracked files matches `docs/modernization-baseline-files.txt` after implementation commits. No baseline file was staged in those commits.
+
 ## Architectural decisions and remaining risks
 
 - Retain current providers, configuration format and product identity. Do not add heavyweight dependencies or silently route user audio/text to new providers.
@@ -56,6 +71,8 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 
 ## Exact next steps
 
-1. Milestone 1 committed as `7627925`; commit milestone 2 files only.
-2. Build new `2.0.2-alpha.20261011` package with the existing release script (`-SkipInstall` uses already restored locked dependencies). Inspect required files and native self-test.
-3. Record final commands/results, package location, limits and prioritized follow-up in documentation; commit checkpoint.
+1. Begin next session with `git status --short`, `git log -5 --oneline`, this file and `docs/MODERNIZATION_2026-10-11.md`. Milestones committed as `7627925` and `9f02601`; documentation checkpoint follows them.
+2. Preserve the 99 pre-existing tracked changes and pre-existing untracked `docs/CLEANUP_AUDIT.md`. They are not covered by this session's focused commits; do not discard or stage them blindly.
+3. In an isolated Windows profile, run `DesktopTranslator.exe --start-stopped --settings` from the new package. Verify first-run guidance, repeated settings reopen, Start/Stop and graceful tray Exit. Then perform the hardware/provider matrix in `docs/MANUAL_TESTS.md` using user-authorized service credentials.
+4. Establish official long-term STT support, test device recovery and 4–8 hour endurance. Address transactional configuration failure behavior and speech-backlog freshness in separate small, tested milestones (details/priorities in the modernization report).
+5. Rebuild with a fresh release version; the script intentionally rejects existing directories. Keep all validation limits explicit before signing/distribution.
