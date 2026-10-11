@@ -16,8 +16,8 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 ## Milestones
 
 1. **Completed: speech segmentation reliability.** Added 200 ms bounded pre-roll, 360 ms silence hangover, 240 ms minimum voiced content and an exact 20-second segment cap. Preserve brief pauses and onset audio; Stop discards incomplete speech. Clear Silero stack padding explicitly and set recognition language before starting capture.
-2. **Active: actionable setup guidance.** Extend the existing coherent settings design with localized credential readiness and direct navigation to missing setup. Avoid claiming a saved key proves connectivity.
-3. **Planned: validation and delivery.** Build, automated regressions, package inspection, documentation and release assessment. Hardware/cloud/soak checks remain separate.
+2. **Completed: actionable setup guidance.** Localized missing-key guidance respects selected speech/translation providers, shared Groq keys, transcription-only and combined Gemini operation. Actions navigate and focus the key field. Alt+1–5 switches settings sections outside text entry; listeners are removed on unmount. No new dependencies or configuration migration.
+3. **Active: validation and delivery.** Package inspection, documentation and release assessment. Hardware/cloud/soak checks remain separate.
 
 ## Verification strategy
 
@@ -29,6 +29,7 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 
 - `PROGRESS.md`, `docs/modernization-baseline-files.txt`.
 - `KikitanTranslator.Base/Recognizers/SpeechSegmenter.cs`, `GroqRecognizer.cs`, `KikitanTranslator.Base/Utility/Silero.cs`, `tests/DesktopTranslator.Tests/Program.cs`.
+- UI `SetupGuidance.tsx`, `useSettingsShortcuts.ts`, `DesktopSettings.tsx`, `desktop.css`, three locale catalogs and `tests/setup-guidance.test.mjs`.
 
 ## Milestone 1 validation
 
@@ -36,6 +37,15 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 - `dotnet run --project tests/DesktopTranslator.Tests --no-build --no-restore`: 24/24 passed with approved execution. An earlier sandbox run passed all speech tests but failed temporary-directory cleanup in an existing configuration test (23/24); the directory was empty on inspection. No application persistence code changed to hide this failure.
 - Four new integration tests inspect actual multipart WAV payloads through fake HTTP; existing queue/cancellation checks updated for the silence threshold.
 - Focused `git diff --check`: passed.
+
+## Milestone 2 validation
+
+- `npm test --prefix KikitanTranslator.Photino/UserInterface`: 26/26 passed, including four setup/shortcut regressions.
+- `npm run build --prefix KikitanTranslator.Photino/UserInterface`: passed TypeScript and Vite. Main JS 394.17 kB (128.45 kB gzip), versus baseline 390.15 kB (127.00 kB gzip); no runtime performance claim. Existing outdated Browserslist-data warning remains.
+- Full solution build after locale changes: passed, 28 warnings / 0 errors; C# 24/24 passed.
+- Browser preview: visually inspected English dark and Chinese light at 1280x720, Japanese dark at 600x760. Verified setup action focuses the password field; Alt+4 preserves the page when editing that field and navigates to General outside it. Native Photino interaction is still unverified.
+- Chrome screenshot tooling stalled; terminated that tool execution and completed visual/interaction checks in Codex's in-app browser using development-only fixtures.
+- Whole working-tree `git diff --check`: passed. Baseline files remain uncommitted.
 
 ## Architectural decisions and remaining risks
 
@@ -46,6 +56,6 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 
 ## Exact next steps
 
-1. Commit validated milestone 1 files only.
-2. Implement/test setup guidance and commit milestone 2.
+1. Milestone 1 committed as `7627925`; commit milestone 2 files only.
+2. Build new `2.0.2-alpha.20261011` package with the existing release script (`-SkipInstall` uses already restored locked dependencies). Inspect required files and native self-test.
 3. Record final commands/results, package location, limits and prioritized follow-up in documentation; commit checkpoint.

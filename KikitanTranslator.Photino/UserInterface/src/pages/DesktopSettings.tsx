@@ -6,6 +6,8 @@ import {app_state, langSource, langTo} from "../util/constants";
 import {controlKikitan, registerNotificationCallback, setConfig, showSubtitleAppearance, showSubtitles} from "../util/photino";
 import {useCredentialDrafts} from "../components/desktop/useCredentialDrafts";
 import CredentialEditor from "../components/desktop/CredentialEditor";
+import SetupGuidance from "../components/desktop/SetupGuidance";
+import {useSettingsShortcuts} from "../components/desktop/useSettingsShortcuts";
 import {Section, SettingRow, ToggleRow} from "../components/desktop/SettingsControls";
 import {desktopTheme} from "../components/desktop/theme";
 import "./desktop.css";
@@ -41,10 +43,12 @@ function DesktopSettingsContent({state}: {state: app_state}) {
         catch { return code; } // Preserve diagnostics for a malformed legacy setting without crashing the UI.
     };
     const [page, setPage] = useState("translation");
+    useSettingsShortcuts(setPage);
     const [error, setError] = useState("");
     const [noticeSeverity, setNoticeSeverity] = useState<"info" | "warning">("warning");
     const [failures, setFailures] = useState(0);
     const main = useRef<HTMLElement>(null);
+    const focusSetup = useRef(false);
     const credentials = useCredentialDrafts(failures);
     const c = state.config;
     const theme = useMemo(() => desktopTheme(c.light_mode, locale), [c.light_mode, locale]);
@@ -65,7 +69,17 @@ function DesktopSettingsContent({state}: {state: app_state}) {
         return <CredentialEditor configured={isConfigured} disabled={disabled} draft={credentials.get(field)}
             onEdit={value => credentials.edit(field, value)} onSave={value => credentials.save(field, value)}/>;
     }
-    useEffect(() => { if (main.current) main.current.scrollTop = 0; }, [page]);
+    function navigateSetup(next: string) {
+        if (next === page) main.current?.querySelector<HTMLInputElement>(".credential-editor input")?.focus();
+        else { focusSetup.current = true; setPage(next); }
+    }
+    useEffect(() => {
+        if (main.current) main.current.scrollTop = 0;
+        if (focusSetup.current) {
+            main.current?.querySelector<HTMLInputElement>(".credential-editor input")?.focus();
+            focusSetup.current = false;
+        }
+    }, [page]);
     return <ThemeProvider theme={theme}><Box className="desktop-app" lang={locale} data-theme={c.light_mode ? "light" : "dark"} sx={{bgcolor: "background.default", color: "text.primary"}}>
         <a className="skip-link" href="#desktop-main">{t("common.skip")}</a>
         <header className="desktop-header">
@@ -76,7 +90,8 @@ function DesktopSettingsContent({state}: {state: app_state}) {
                     {state.status === 0 ? t("common.start") : t("common.stop")}</Button>
                 <Button variant="outlined" onClick={showSubtitles}>{t("common.showSubtitles")}</Button></div>
         </header>
-        <aside className="desktop-sidebar"><nav aria-label={t("common.sections")}>{pages.map(p => <button type="button" key={p.id} className={page === p.id ? "selected" : ""}
+        <aside className="desktop-sidebar"><nav aria-label={t("common.sections")}>{pages.map((p, index) => <button type="button" key={p.id} className={page === p.id ? "selected" : ""}
+            aria-keyshortcuts={`Alt+${index + 1}`} title={`${p.label} (Alt+${index + 1})`}
             aria-current={page === p.id ? "page" : undefined} onClick={() => setPage(p.id)}><p.icon fontSize="small"/><span>{p.label}</span></button>)}</nav>
             <div className="sidebar-footer"><VolumeUpOutlined fontSize="small"/><span>{t("speech.systemAudio")}<br/><small>{t("speech.defaultDevice")}</small></span></div>
         </aside>
@@ -84,6 +99,7 @@ function DesktopSettingsContent({state}: {state: app_state}) {
             <div className="page-heading"><Typography component="h1" variant="h1">{current.label}</Typography><Typography color="text.secondary">{current.description}</Typography></div>
             {(error || state.configuration_error) && <Alert severity={state.configuration_error ? "error" : noticeSeverity} closeText={t("common.close")} onClose={state.configuration_error ? undefined : () => setError("")} sx={{mb: 3}}>{state.configuration_error ? t("errors.configuration") : noticeKey ? t(noticeKey) : noticeSeverity === "info" ? error : t(errorKey(error))}{(state.configuration_error || noticeSeverity !== "info") && <details><summary>{t("errors.details")}</summary>{state.configuration_error || error}</details>}</Alert>}
             <div className="session-summary" aria-label={t("common.configuration")}><span>{source} <ArrowForwardOutlined sx={{fontSize: 14}}/> {target}</span><span>{recognition} · {c.speech_to_text_only ? t("translation.transcription") : provider.name}</span></div>
+            {!disabled && (page === "translation" || page === "speech") && <SetupGuidance config={c} t={t} onNavigate={navigateSetup}/>}
             {page === "translation" && <>
                 <Section title={t("translation.languages")}><div className="language-direction"><div><label id="source-label">{t("translation.source")}</label><Select fullWidth labelId="source-label" inputProps={{"aria-describedby": "source-help"}} disabled={disabled} value={c.source_language} onChange={e => setConfig("source_language", e.target.value)}>{langSource.map(l => <MenuItem key={l.code} value={l.code}>{languageName(l.code)}</MenuItem>)}</Select><Typography id="source-help" variant="body2" color="text.secondary">{t("translation.sourceHelp")}</Typography></div>
                     <ArrowForwardOutlined className="language-arrow" sx={{color: "text.secondary"}}/>
@@ -111,6 +127,7 @@ function DesktopSettingsContent({state}: {state: app_state}) {
                 <Section title={t("general.appearance")}><SettingRow title={t("general.interfaceLanguage")} description={t("general.languageHelp")} descriptionId="interface-language-help"><Select inputProps={{"aria-label": t("general.interfaceLanguage"), "aria-describedby": "interface-language-help"}} value={locale} disabled={disabled} onChange={e => setConfig("ui_language", e.target.value)}>{supportedLocales.map(item => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}</Select></SettingRow><SettingRow title={t("general.theme")} description={t("general.themeHelp")} descriptionId="theme-help"><Select inputProps={{"aria-label": t("general.theme"), "aria-describedby": "theme-help"}} value={c.light_mode ? "light" : "dark"} disabled={disabled} onChange={e => setConfig("light_mode", e.target.value === "light")}><MenuItem value="dark">{t("general.dark")}</MenuItem><MenuItem value="light">{t("general.light")}</MenuItem></Select></SettingRow></Section>
                 <Section title={t("general.startup")}><ToggleRow title={t("general.autoStart")} description={t("general.autoStartHelp")} checked={c.auto_start} disabled={disabled} onChange={value => setConfig("auto_start", value)}/><SettingRow title={t("general.tray")} description={t("general.trayHelp")}><Typography variant="body2" color="text.secondary">{t("general.available")}</Typography></SettingRow></Section>
                 <Section title={t("general.saving")}><Typography color="text.secondary">{t("general.savingHelp")}</Typography></Section>
+                <Section title={t("general.shortcuts")}><Typography color="text.secondary">{t("general.shortcutsHelp")}</Typography></Section>
             </>}
             {page === "about" && <>
                 <Section title="Desktop Translator"><Typography>{t("about.product")}</Typography><Typography color="text.secondary" sx={{mt: 1}}>{t("about.version", {version: state.app_version})}</Typography></Section>

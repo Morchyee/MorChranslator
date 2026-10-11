@@ -1,4 +1,13 @@
 {
+  "setup.title": "完成使用准备",
+  "setup.description": "为所选服务添加 API 密钥。你可以随时切换服务。",
+  "setup.speech": "添加 {provider} 密钥以识别语音。",
+  "setup.translation": "添加 {provider} 密钥以显示翻译字幕，或在翻译设置中选择“仅转写”。",
+  "setup.configureSpeech": "配置语音识别",
+  "setup.configureTranslation": "配置翻译",
+  "setup.privacy": "密钥安全保存在当前 Windows 账户下。保存密钥不会验证服务权限或可用额度。",
+  "general.shortcuts": "键盘快捷键",
+  "general.shortcutsHelp": "此窗口获得焦点时，使用 Alt+1 至 Alt+5 切换设置页面。编辑文本框时不会触发快捷键。",
   "common.opening": "正在打开 Desktop Translator…",
   "speech.language": "识别语言",
   "speech.languageHelp": "与“翻译”页面的源语言保持一致。",

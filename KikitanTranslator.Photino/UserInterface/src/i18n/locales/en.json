@@ -1,4 +1,13 @@
 {
+  "setup.title": "Finish setting up",
+  "setup.description": "Add the keys for your selected services. You can change providers at any time.",
+  "setup.speech": "Add a {provider} key to recognize speech.",
+  "setup.translation": "Add a {provider} key for translated subtitles, or choose Transcription only in Translation settings.",
+  "setup.configureSpeech": "Set up speech",
+  "setup.configureTranslation": "Set up translation",
+  "setup.privacy": "Keys are stored securely on this Windows account. Saving a key does not verify service access or quota.",
+  "general.shortcuts": "Keyboard shortcuts",
+  "general.shortcutsHelp": "Use Alt+1 through Alt+5 to switch settings sections while this window is focused. Shortcuts are inactive while editing a text field.",
   "common.opening": "Opening Desktop Translator…",
   "speech.language": "Recognition language",
   "speech.languageHelp": "Uses the same source language as Translation.",

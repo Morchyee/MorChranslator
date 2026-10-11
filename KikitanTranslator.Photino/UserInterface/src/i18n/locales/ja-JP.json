@@ -1,4 +1,13 @@
 {
+  "setup.title": "利用の準備を完了する",
+  "setup.description": "選択したサービスの API キーを追加してください。サービスはいつでも変更できます。",
+  "setup.speech": "音声を認識するには {provider} のキーを追加してください。",
+  "setup.translation": "翻訳字幕には {provider} のキーが必要です。または翻訳設定で「文字起こしのみ」を選択してください。",
+  "setup.configureSpeech": "音声認識を設定",
+  "setup.configureTranslation": "翻訳を設定",
+  "setup.privacy": "キーは現在の Windows アカウントで安全に保存されます。保存時にサービスの利用権限や残りの割り当ては確認されません。",
+  "general.shortcuts": "キーボードショートカット",
+  "general.shortcutsHelp": "このウィンドウにフォーカスがあるとき、Alt+1 から Alt+5 で設定ページを切り替えます。テキスト欄の編集中は無効です。",
   "common.opening": "Desktop Translator を開いています…",
   "speech.language": "認識する言語",
   "speech.languageHelp": "「翻訳」の音声の言語と共通です。",
