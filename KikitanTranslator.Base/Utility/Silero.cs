@@ -59,6 +59,7 @@ public sealed class SileroVad : IDisposable
         Array.Copy(_context, 0, _input, 0, _contextSize);
 
         Span<float> padded = stackalloc float[_chunkSize];
+        padded.Clear(); // stackalloc contents are undefined; the 32 padding samples must be silence.
         samples.Slice(0, _frameLength).CopyTo(padded);
         padded.CopyTo(_input.AsSpan(_contextSize, _chunkSize));
 

@@ -231,6 +231,58 @@ Test("Malformed configuration and unavailable credentials are preserved", () =>
     File.Delete(file); Directory.Delete(folder); return Task.CompletedTask;
 });
 
+Test("Groq preserves word onset and brief pauses in one WAV request", async () =>
+{
+    using var speech = new SpeechFixture();
+    speech.Emit(6400, 0.1f, false); // Only the newest 200 ms belongs in pre-roll.
+    speech.Emit(1920, 0.2f, true);
+    speech.Emit(960, 0.3f, false); // A 60 ms gap must not split two short syllables.
+    speech.Emit(1920, 0.4f, true);
+    speech.Emit(5760, 0, false);
+    var wav = await speech.Requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+    Check(BitConverter.ToInt32(wav, 24) == 16000 && BitConverter.ToInt32(wav, 40) == 13760 * 2);
+    Check(BitConverter.ToInt16(wav, 44) == (short)(0.1f * 32767));
+    Check(BitConverter.ToInt16(wav, 44 + 3200 * 2) == (short)(0.2f * 32767));
+    Check(BitConverter.ToInt16(wav, 44 + 5120 * 2) == (short)(0.3f * 32767));
+    Check(BitConverter.ToInt16(wav, 44 + 6080 * 2) == (short)(0.4f * 32767));
+    speech.Recognizer.Stop();
+    Check(speech.Calls == 1);
+});
+Test("Groq ignores silence and short noise without leaking it into the next utterance", async () =>
+{
+    using var speech = new SpeechFixture();
+    speech.Emit(32000, 0, false);
+    speech.Emit(960, 0.9f, true);
+    speech.Emit(6400, 0, false);
+    speech.Emit(3840, 0.25f, true);
+    speech.Emit(5760, 0, false);
+    var wav = await speech.Requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+    speech.Recognizer.Stop();
+    Check(speech.Calls == 1);
+    for (var i = 44; i < wav.Length; i += 2) Check(BitConverter.ToInt16(wav, i) <= (short)(0.25f * 32767));
+});
+Test("Groq splits continuous speech at twenty seconds with no missing samples", async () =>
+{
+    using var speech = new SpeechFixture();
+    speech.Emit(320000, 0.2f, true);
+    speech.Emit(3840, 0.4f, true);
+    speech.Emit(5760, 0, false);
+    var first = await speech.Requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+    var second = await speech.Requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+    Check(first.Length == 44 + 320000 * 2 && second.Length == 44 + 9600 * 2);
+    Check(BitConverter.ToInt16(second, 44) == (short)(0.4f * 32767));
+    speech.Recognizer.Stop();
+    Check(speech.Calls == 2);
+});
+Test("Groq Stop discards unfinished speech and ignores later capture callbacks", () =>
+{
+    using var speech = new SpeechFixture();
+    speech.Emit(3840, 0.2f, true);
+    speech.Recognizer.Stop();
+    speech.Emit(5760, 0, false);
+    Check(speech.Calls == 0);
+    return Task.CompletedTask;
+});
 Test("Groq speech processing is bounded, serial and cancelled on stop", async () =>
 {
     AppConfig.ConfigObject = new() { GroqApiKey = "TEST_CREDENTIAL" };
@@ -246,7 +298,7 @@ Test("Groq speech processing is bounded, serial and cancelled on stop", async ()
     var errors = new Errors();
     using var recognizer = new GroqRecognizer(capture, new HttpClient(handler));
     recognizer.Start("en", errors);
-    for (var i = 0; i < 20; i++) { capture.Emit(new float[3840], true); capture.Emit(new float[960], false); }
+    for (var i = 0; i < 20; i++) { capture.Emit(new float[3840], true); capture.Emit(new float[5760], false); }
     await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
     await Task.Run(recognizer.Stop).WaitAsync(TimeSpan.FromSeconds(2));
     Check(calls == 1 && cancelled && capture.Stopped && errors.Messages.Count > 0, $"calls={calls}, cancelled={cancelled}, stopped={capture.Stopped}, errors={errors.Messages.Count}");
@@ -356,4 +408,26 @@ sealed class FakeCapture : KikitanTranslator.Capture.ICapture
     public void Stop() => Stopped = true;
     public void Pause() { }
     public void Resume() { }
+}
+
+sealed class SpeechFixture : IDisposable
+{
+    private readonly FakeCapture _capture = new();
+    public readonly GroqRecognizer Recognizer;
+    public readonly System.Threading.Channels.Channel<byte[]> Requests = System.Threading.Channels.Channel.CreateUnbounded<byte[]>();
+    public int Calls;
+    public SpeechFixture()
+    {
+        AppConfig.ConfigObject = new() { GroqApiKey = "TEST_CREDENTIAL" };
+        Recognizer = new GroqRecognizer(_capture, new HttpClient(new FakeHttp(async (request, token) =>
+        {
+            var file = ((MultipartFormDataContent)request.Content!).Single(part => part.Headers.ContentDisposition?.Name?.Trim('"') == "file");
+            Interlocked.Increment(ref Calls);
+            Requests.Writer.TryWrite(await file.ReadAsByteArrayAsync(token));
+            return new(HttpStatusCode.OK) { Content = new StringContent("{\"text\":\"recognized\"}") };
+        })));
+        Recognizer.Start("en", new Errors());
+    }
+    public void Emit(int count, float value, bool speech) => _capture.Emit(Enumerable.Repeat(value, count).ToArray(), speech);
+    public void Dispose() => Recognizer.Dispose();
 }
