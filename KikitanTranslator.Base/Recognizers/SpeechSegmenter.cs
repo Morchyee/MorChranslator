@@ -6,7 +6,7 @@ internal sealed class SpeechSegmenter(uint sampleRate)
     private readonly float[] _preRoll = new float[checked((int)sampleRate / 5)]; // 200 ms
     private readonly int _endSilence = checked((int)sampleRate * 360 / 1000);
     private readonly int _minimumSpeech = checked((int)sampleRate * 240 / 1000);
-    private readonly int _maximumSamples = checked((int)sampleRate * 20);
+    private readonly int _maximumSamples = checked((int)sampleRate * 5); // Bound batch STT latency during continuous speech.
     private readonly List<float> _buffer = [];
     private int _preRollOffset, _preRollCount, _speechSamples, _silentSamples;
     private bool _collecting;

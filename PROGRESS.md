@@ -19,7 +19,18 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 2. **Completed: actionable setup guidance.** Localized missing-key guidance respects selected speech/translation providers, shared Groq keys, transcription-only and combined Gemini operation. Actions navigate and focus the key field. Alt+1–5 switches settings sections outside text entry; listeners are removed on unmount. No new dependencies or configuration migration.
 3. **Completed: validation and delivery.** Self-contained package, native rendering test, content verification, technical changelog and prioritized release assessment. Hardware/cloud/soak checks remain separate.
 
-**Current active milestone: none.** This session is at a validated stopping point. The overall production-readiness objective remains incomplete; continue with the prioritized acceptance work below.
+**Current milestone completed: sentence translation latency (continuation session).** Branch `codex/sentence-translation-latency`, starting at `97ff441`. Initial C# baseline: 24/24 passed; final: 37/37 passed. The 99 pre-existing tracked changes and untracked cleanup audit remain untouched. No unfinished implementation is required to build or use this milestone.
+
+### Latency session results and recovery
+
+- Saved configuration selects desktop Bing (recognizer 0), DeepL, English -> Chinese. Only routing fields were read; credentials were not printed, decrypted, changed or used.
+- Cause confirmed: Bing already emits `speech.hypothesis` as nonfinal and `speech.phrase` as final, but `Kikitan.OnRecognition` previously gated translation on finals. Groq uploads whole WAV segments and emits no partials; its previous cap was 20 seconds. Gemini already has a combined streaming source/translation path.
+- Implemented desktop-only previews from prefixes stable across successive hypotheses, choosing sentence punctuation or growth of 12 words / 24 CJK characters. One subtitle ID and authoritative final updates are preserved. One coalesced preview slot is separate from the unchanged final queue; queued finals take priority. Two-second cooperative cancellation bounds preview requests; finals and incompatible source revisions cancel active previews. Exact matching finals can reuse completed previews, with language-direction validation. Legacy delayed outputs and Gemini retain their existing behavior.
+- Groq's hard buffered-audio segment limit is now five seconds. Pre-roll, minimum speech, 360 ms pause tolerance, serial transport and cancellation remain intact. This improves batch submission latency; it does not introduce streaming STT. More requests and mid-word hard cuts remain a tradeoff.
+- Verification actually executed: full solution build with `--no-restore -m:1 -p:SkipNpmBuild=true -p:UseSharedCompilation=false -v:q` passed twice, 28 warnings / 0 errors; C# runner passed 36/36 then 37/37 after the language-direction regression fix; native subtitle `--self-test` passed rendering, update, history and scroll checks; `git diff --check` passed. No live audio/provider calls or end-to-end latency measurements. Frontend unchanged and not rebuilt in this continuation.
+- Exact session files: `KikitanTranslator.Base/Kikitan.cs`, `KikitanTranslator.Base/StreamingTranslationPreview.cs`, `KikitanTranslator.Base/Properties/AssemblyInfo.cs`, `KikitanTranslator.Base/Recognizers/SpeechSegmenter.cs`, `tests/DesktopTranslator.Tests/Program.cs`, `tests/DesktopTranslator.Tests/LatencyTests.cs`, `docs/SENTENCE_LATENCY.md`, `PROGRESS.md`.
+- Detailed cause analysis, changelog, test evidence, limits and prioritized architectural handoff: `docs/SENTENCE_LATENCY.md`. No broad provider/audio/IPC rewrite, configuration migration or dependency addition. The earlier portable release below does not contain this continuation's changes.
+- Known unfinished architecture: no linguistic/time-based stability guarantee; a corrected prefix shorter than the furthest scheduled preview can wait for final; preview translation may cover only a leading part of displayed source; cancellation depends on provider cooperation; Groq has no overlap/stitching and slow batch/translation queues can still delay output. No unsupported performance claim is made.
 
 ## Verification strategy
 
@@ -27,7 +38,7 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 - Existing C# and frontend regressions plus TypeScript/Vite and full solution build.
 - Run native subtitle self-test and verify a new release directory if budget permits; never overwrite older releases.
 
-## Files modified this session
+## Files modified in earlier modernization session
 
 - `PROGRESS.md`, `docs/modernization-baseline-files.txt`.
 - `KikitanTranslator.Base/Recognizers/SpeechSegmenter.cs`, `GroqRecognizer.cs`, `KikitanTranslator.Base/Utility/Silero.cs`, `tests/DesktopTranslator.Tests/Program.cs`.
@@ -71,8 +82,8 @@ Baseline: frontend 22/22 and C# 20/20 tests passed; TypeScript/Vite production b
 
 ## Exact next steps
 
-1. Begin next session with `git status --short`, `git log -5 --oneline`, this file and `docs/MODERNIZATION_2026-10-11.md`. Milestones committed as `7627925` and `9f02601`; documentation checkpoint follows them.
+1. Begin next session with `git status --short`, `git log -5 --oneline`, this file and `docs/SENTENCE_LATENCY.md`. The latency milestone follows `97ff441`; earlier milestones are `7627925` and `9f02601`. No in-progress rewrite needs recovery.
 2. Preserve the 99 pre-existing tracked changes and pre-existing untracked `docs/CLEANUP_AUDIT.md`. They are not covered by this session's focused commits; do not discard or stage them blindly.
-3. In an isolated Windows profile, run `DesktopTranslator.exe --start-stopped --settings` from the new package. Verify first-run guidance, repeated settings reopen, Start/Stop and graceful tray Exit. Then perform the hardware/provider matrix in `docs/MANUAL_TESTS.md` using user-authorized service credentials.
-4. Establish official long-term STT support, test device recovery and 4–8 hour endurance. Address transactional configuration failure behavior and speech-backlog freshness in separate small, tested milestones (details/priorities in the modernization report).
-5. Rebuild with a fresh release version; the script intentionally rejects existing directories. Keep all validation limits explicit before signing/distribution.
+3. Measure real Bing partial cadence, punctuation and sentence-to-subtitle latency using authorized audio/services; check preview usefulness and rate limits. Test continuous speech and word quality at Groq's five-second cuts. Add sanitized monotonic stage timings before tuning heuristic thresholds.
+4. Follow the prioritized handoff in `docs/SENTENCE_LATENCY.md`: supported streaming recognizer capabilities/revision events, committed-prefix/draft-tail subtitle semantics, word-safe batch overlap/deduplication, request budgets and measured IPC coalescing. Complete each as a separate tested milestone. Keep existing lifecycle/network limitations visible.
+5. Build a fresh portable release version before packaged acceptance; the older package lacks the latency changes. In an isolated Windows profile, verify first-run guidance, repeated settings reopen, Start/Stop and tray Exit, then the hardware/provider matrix in `docs/MANUAL_TESTS.md`. Real providers/audio, mixed DPI, device recovery, signing and 4–8 hour endurance remain unverified release gates. Also retain the broader backlog in `docs/MODERNIZATION_2026-10-11.md`.

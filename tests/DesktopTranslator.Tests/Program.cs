@@ -15,6 +15,7 @@ async Task Wait(Func<bool> condition)
     using var timeout = new CancellationTokenSource(3000);
     while (!condition()) await Task.Delay(10, timeout.Token);
 }
+LatencyTests.Register(Test, Check);
 Test("Desktop catalogs are complete and native English fallback works", () =>
 {
     var assembly = typeof(KikitanTranslator.Resources.DesktopText).Assembly;
@@ -261,15 +262,15 @@ Test("Groq ignores silence and short noise without leaking it into the next utte
     Check(speech.Calls == 1);
     for (var i = 44; i < wav.Length; i += 2) Check(BitConverter.ToInt16(wav, i) <= (short)(0.25f * 32767));
 });
-Test("Groq splits continuous speech at twenty seconds with no missing samples", async () =>
+Test("Groq starts transcription at five seconds without waiting for silence", async () =>
 {
     using var speech = new SpeechFixture();
-    speech.Emit(320000, 0.2f, true);
+    speech.Emit(80000, 0.2f, true);
+    var first = await speech.Requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
     speech.Emit(3840, 0.4f, true);
     speech.Emit(5760, 0, false);
-    var first = await speech.Requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
     var second = await speech.Requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
-    Check(first.Length == 44 + 320000 * 2 && second.Length == 44 + 9600 * 2);
+    Check(first.Length == 44 + 80000 * 2 && second.Length == 44 + 9600 * 2);
     Check(BitConverter.ToInt16(second, 44) == (short)(0.4f * 32767));
     speech.Recognizer.Stop();
     Check(speech.Calls == 2);

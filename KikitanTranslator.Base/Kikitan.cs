@@ -17,6 +17,12 @@ public sealed class Kikitan : IDisposable
     private readonly object _recognitionLock = new();
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Channel<PendingTranslation> _translations;
+    private readonly SemaphoreSlim _translationAvailable = new(0, 1);
+    private readonly StreamingTranslationPreview _previewPolicy = new();
+    private PendingTranslation? _pendingPreview;
+    private PendingTranslation? _completedPreview;
+    private CancellationTokenSource? _activePreview;
+    private string _activePreviewText = "", _currentSource = "", _translatedPrefix = "", _previewTranslation = "";
     private readonly Channel<(string Source, string Translation)> _delayed = Channel.CreateBounded<(string, string)>(32);
     private Task? _translationWorker;
     private Task? _outputWorker;
@@ -27,7 +33,7 @@ public sealed class Kikitan : IDisposable
     private DateTime _lastFailure;
 
     private sealed record PendingTranslation(Guid Id, string Text, string Source, string Target, bool TranscriptionOnly,
-        long EnqueuedAt);
+        long EnqueuedAt, bool Preview = false, string? CachedTranslation = null);
     public event OnRecognizerStatus? OnRecognizerStatusChanged;
     public event Action<Guid, string, string, bool, bool>? OnSubtitle;
 
@@ -70,51 +76,147 @@ public sealed class Kikitan : IDisposable
             }
             else
             {
+                _currentSource = text.Trim();
+                if (_activePreview != null && (final || !StreamingTranslationPreview.IsCompatible(_currentSource, _activePreviewText)))
+                    _activePreview.Cancel();
+                if (_translatedPrefix.Length > 0 && (!StreamingTranslationPreview.IsCompatible(_currentSource, _translatedPrefix) ||
+                    _completedPreview?.Source != AppConfig.ConfigObject.SourceLanguage ||
+                    _completedPreview?.Target != AppConfig.ConfigObject.TargetLanguage || AppConfig.ConfigObject.SpeechToTextOnly))
+                    _translatedPrefix = _previewTranslation = "";
                 // Commit source immediately; translation later updates exactly this ID.
-                OnSubtitle?.Invoke(id, text, "", final, false);
+                OnSubtitle?.Invoke(id, text, _previewTranslation, final, false);
                 foreach (var output in _outputs.Where(o => !o.IsDelayed())) SendOutput(output, text, "", false);
-                if (final && !_translations.Writer.TryWrite(new PendingTranslation(id, text,
-                        AppConfig.ConfigObject.SourceLanguage, AppConfig.ConfigObject.TargetLanguage,
-                        AppConfig.ConfigObject.SpeechToTextOnly, System.Diagnostics.Stopwatch.GetTimestamp())))
-                    ReportFailure("Translation queue is full. Original subtitles are retained.");
+                if (final)
+                {
+                    _pendingPreview = null;
+                    var cached = _currentSource == _translatedPrefix ? _previewTranslation : null;
+                    if (!_translations.Writer.TryWrite(CreateTranslation(id, text, false, cached)))
+                        ReportFailure("Translation queue is full. Original subtitles are retained.");
+                    else SignalTranslation();
+                }
+                else if (_isLoopback && !AppConfig.ConfigObject.SpeechToTextOnly)
+                {
+                    var preview = _previewPolicy.Observe(text);
+                    if (preview != null)
+                    {
+                        // One replaceable slot, separate from the final-result queue.
+                        _pendingPreview = CreateTranslation(id, preview, true);
+                        SignalTranslation();
+                    }
+                }
             }
-            if (final) _utteranceId = Guid.NewGuid();
+            if (final)
+            {
+                _utteranceId = Guid.NewGuid();
+                _previewPolicy.Reset();
+                _completedPreview = null;
+                _translatedPrefix = _previewTranslation = _currentSource = "";
+            }
         }
     }
+
+    private static PendingTranslation CreateTranslation(Guid id, string text, bool preview, string? cached = null) =>
+        new(id, text, AppConfig.ConfigObject.SourceLanguage, AppConfig.ConfigObject.TargetLanguage,
+            AppConfig.ConfigObject.SpeechToTextOnly, System.Diagnostics.Stopwatch.GetTimestamp(), preview, cached);
+
+    // Producers and candidate access are serialized by _recognitionLock. A single
+    // wake-up suffices because the worker drains final work before the preview slot.
+    private void SignalTranslation()
+    {
+        if (_translationAvailable.CurrentCount == 0) _translationAvailable.Release();
+    }
+    private bool TryTakeTranslation(out PendingTranslation item)
+    {
+        lock (_recognitionLock)
+        {
+            if (_translations.Reader.TryRead(out var final)) { item = final; return true; }
+            if (_pendingPreview != null) { item = _pendingPreview; _pendingPreview = null; return true; }
+            item = null!;
+            return false;
+        }
+    }
+    private bool IsCurrentPreview(PendingTranslation item) => _running && item.Id == _utteranceId &&
+        item.Source == AppConfig.ConfigObject.SourceLanguage && item.Target == AppConfig.ConfigObject.TargetLanguage &&
+        !AppConfig.ConfigObject.SpeechToTextOnly &&
+        StreamingTranslationPreview.IsCompatible(_currentSource, item.Text);
+
     private async Task TranslateQueuedAsync(CancellationToken token)
     {
         try
         {
-            await foreach (var item in _translations.Reader.ReadAllAsync(token))
+            while (!token.IsCancellationRequested)
             {
-                if (token.IsCancellationRequested) break;
-                // Never spend another provider request on desktop speech that is already stale.
-                if (_isLoopback && System.Diagnostics.Stopwatch.GetElapsedTime(item.EnqueuedAt) > TimeSpan.FromSeconds(10))
-                    continue;
-                string translated = "";
-                try
+                await _translationAvailable.WaitAsync(token);
+                while (TryTakeTranslation(out var item))
                 {
-                    if (!item.TranscriptionOnly)
-                        translated = await _translator.TranslateAsync(item.Text, item.Source, item.Target, token) ?? "";
-                    if (!item.TranscriptionOnly && string.IsNullOrWhiteSpace(translated))
-                        ReportFailure("Translation provider returned no text. Original subtitles are retained.");
-                }
-                catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
-                catch (Exception e)
-                {
-                    // Do not log provider exceptions: some include request URLs or credentials.
-                    Log.Warning("[TRANSLATION] Failed with {ErrorType}", e.GetType().Name);
-                    ReportFailure(e is InvalidOperationException ? e.Message :
-                        "Translation failed or timed out. Check provider credentials, languages and network. Original subtitles are retained.");
-                }
-                lock (_recognitionLock)
-                {
-                    if (!_running) break;
-                    Publish(item.Id, item.Text, translated, true, true);
+                    if (token.IsCancellationRequested) break;
+                    // Never spend another provider request on desktop speech that is already stale.
+                    if (_isLoopback && System.Diagnostics.Stopwatch.GetElapsedTime(item.EnqueuedAt) > TimeSpan.FromSeconds(10))
+                        continue;
+                    await TranslateOneAsync(item, token);
                 }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
+
+    private async Task TranslateOneAsync(PendingTranslation item, CancellationToken token)
+    {
+        string translated = "";
+        CancellationTokenSource? previewBudget = null;
+        try
+        {
+            if (item.Preview)
+            {
+                lock (_recognitionLock)
+                {
+                    if (!IsCurrentPreview(item)) return;
+                    previewBudget = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    previewBudget.CancelAfter(TimeSpan.FromSeconds(2));
+                    _activePreview = previewBudget;
+                    _activePreviewText = item.Text;
+                }
+            }
+            var requestToken = previewBudget?.Token ?? token;
+            if (!item.TranscriptionOnly)
+                translated = item.CachedTranslation ?? await _translator.TranslateAsync(item.Text, item.Source, item.Target, requestToken) ?? "";
+            if (!item.TranscriptionOnly && string.IsNullOrWhiteSpace(translated))
+                ReportFailure("Translation provider returned no text. Original subtitles are retained.");
+            lock (_recognitionLock)
+            {
+                if (!_running) return;
+                if (item.Preview)
+                {
+                    if (previewBudget!.IsCancellationRequested || !IsCurrentPreview(item) || string.IsNullOrWhiteSpace(translated)) return;
+                    _translatedPrefix = item.Text;
+                    _previewTranslation = translated;
+                    _completedPreview = item;
+                    // Keep the newest original text; a preview may cover only
+                    // its stable leading sentences. Final STT remains authoritative.
+                    OnSubtitle?.Invoke(item.Id, _currentSource, translated, false, true);
+                }
+                else Publish(item.Id, item.Text, translated, true, true);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (previewBudget?.IsCancellationRequested == true) { }
+        catch (Exception e)
+        {
+            // Do not log provider exceptions: some include request URLs or credentials.
+            Log.Warning("[TRANSLATION] Failed with {ErrorType}", e.GetType().Name);
+            ReportFailure(e is InvalidOperationException ? e.Message :
+                "Translation failed or timed out. Check provider credentials, languages and network. Original subtitles are retained.");
+            if (!item.Preview)
+                lock (_recognitionLock) { if (_running) Publish(item.Id, item.Text, "", true, true); }
+        }
+        finally
+        {
+            if (previewBudget != null)
+            {
+                lock (_recognitionLock) { if (ReferenceEquals(_activePreview, previewBudget)) _activePreview = null; }
+                previewBudget.Dispose();
+            }
+        }
     }
     private void Publish(Guid id, string text, string translated, bool final, bool translationUpdate = false)
     {
@@ -172,6 +274,7 @@ public sealed class Kikitan : IDisposable
             Task.WhenAll(_translationWorker ?? Task.CompletedTask, _outputWorker ?? Task.CompletedTask).GetAwaiter().GetResult();
             lock (_recognitionLock) { }
             _translator.Dispose();
+            _translationAvailable.Dispose();
             _lifetime.Dispose();
         }
     }
