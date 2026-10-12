@@ -16,8 +16,6 @@ These checks were executed against a clean isolated committed worktree, not the 
 - Package: **24 files**, **23/23 SHA256SUMS entries**, **246,935,157 bytes** unpacked. Both executables have ProductName MorChranslator, x64 PE format and the exact source revision in ProductVersion. No application configuration, logs, source, debug symbols, node_modules or known credential patterns in the package. Every ZIP entry and extracted file matches the package hash; exactly one top-level product folder.
 - ZIP: `MorChranslator-2.0.2-alpha.20261012.1-win-x64.zip`, **106,380,254 bytes**. SHA256: `c8caddb4aa1437d34a6488df1efd3a904f1d38de4bf00251b7768b62e6fc12cc`.
 
-## Limits
-
 ## GitHub delivery
 
 - Repository: https://github.com/Morchyee/MorChranslator . Pre-release: https://github.com/Morchyee/MorChranslator/releases/tag/v2.0.2-alpha.20261012.1 . Release ID 410726048. ZIP and `.zip.sha256` are Release assets, never Git blobs.
