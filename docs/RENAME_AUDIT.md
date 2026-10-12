@@ -11,7 +11,7 @@
 | `MorChranslator.Photino/UserInterface/src/i18n/locales/zh-CN.json` | 95 | 上游项目来源与必要署名 |
 | `MorChranslator.Subtitles/SubtitleAppearanceDialog.cs` | 179 | 旧数据路径、锁、IPC、自动化/诊断别名及其回归断言 |
 | `MorChranslator.Subtitles/SubtitleWindow.cs` | 181, 198, 401 | 旧数据路径、锁、IPC、自动化/诊断别名及其回归断言 |
-| `PROGRESS.md` | 24, 30, 31, 40, 42, 45, 49, 50, 59, 60, 62, 63, 81, 85, 98, 104, 105, 111, 112, 122, 123 | 历史记录、已有用户审计或历史包名，保留事实 |
+| `PROGRESS.md` | 18, 19, 38, 44, 45, 54, 56, 59, 63, 64, 73, 74, 76, 77, 95, 99, 112, 118, 119, 125, 126, 136, 137 | 历史记录、已有用户审计或历史包名，保留事实 |
 | `README.md` | 3, 94 | 上游项目来源与必要署名 |
 | `README.md` | 32 | 旧数据路径、锁、IPC、自动化/诊断别名及其回归断言 |
 | `docs/DIAGNOSTIC_TESTING_ZH.md` | 40 | 旧数据路径、锁、IPC、自动化/诊断别名及其回归断言 |
