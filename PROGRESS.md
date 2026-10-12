@@ -9,6 +9,17 @@
 
 ## Current status
 
+### Active milestone — MorChranslator product rename (2026-10-12)
+
+- Dedicated branch `codex/MorChranslator-rename`, starting HEAD `7276dd5`. No push or GitHub Release. Root directory stays unchanged for workspace compatibility.
+- Captured all 224 tracked paths plus the existing cleanup audit and 255 prior release files in `release/audit-work/MorChranslator-rename/baseline.json`; original working bytes are preserved in `working-before`. Original 99 edits/deletions must remain unstaged after the rename commit (mapped to new paths).
+- Product/project/namespace/resource/file names are being changed to **MorChranslator**. Recognition class is renamed to `TranslationPipeline` only; no algorithms, scheduling, GUIDs or wire/event meanings change.
+- Keep old data-folder, mutex, pipe and diagnostics switch identifiers compatible; keep original copyright/provenance and historical evidence. Generated old bin/obj/dist are parked in the ignored audit directory, not deleted. Old releases are immutable.
+- Commit strategy: prepare branding-only versions from HEAD separately (`index-source`), validate them, and stage those exact blobs; do not accidentally include the 99 pre-existing changes. Build/package current working state separately and label it accurately.
+- Required before completion: compatibility/branding tests, frontend tests/build, complete .NET build, custom runner, native self-tests, startup/WebView/shutdown checks, new portable ZIP/integrity, remaining-hit classification, preservation verification and focused commit. Live audio/cloud behavior must be reported unverified unless actually exercised.
+- Verified before code checkpoint: current working solution build passed (36 warnings / 0 errors including blocked NuGet vulnerability feed), custom runner **56/56**, frontend **27/27**, TypeScript/Vite production build passed after sandbox realpath EPERM retry. Independent HEAD-based branding-only candidate: complete seven-project build **72 warnings / 0 errors**, runner **56/56**, frontend **27/27**. Locked npm ci installed 527 original dependencies; offline cache lacked zwitch, normal install succeeded without upgrades. Candidate yarn.lock restored after npm side effect.
+- Remaining names classified in `docs/RENAME_AUDIT.md`; compatibility details in `docs/RENAMING.md`. No unexplained active brand hits. Prior release hashes **255/255 unchanged**. Code checkpoint is ready; package/native/startup validation follows, without further feature changes.
+
 ### Completed delivery — isolated diagnostics portable build (2026-10-12)
 
 - App source pinned to `5fc56a08c95dd21c490fa729ec8fb6a9ee373a92`, exported by git archive; the dirty working tree was not a build/package input. Version: `2.0.2-diagnostic.20261012.5fc56a0` (new directory only). Both executable ProductVersions contain the full source revision.

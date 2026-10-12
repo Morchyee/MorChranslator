@@ -1,0 +1,266 @@
+using System.Threading.Channels;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text.Json;
+using MorChranslator.Capture;
+using MorChranslator.Utility;
+using Serilog;
+
+namespace MorChranslator.Recognizers;
+
+public class GroqRecognizer : IRecognizer
+{
+    private const int BitsPerSample = 16;
+    private const int Channels = 1;
+
+    public event OnRecognition? OnRecognitionReceived;
+    public event OnRecognizerStatus? OnRecognizerStatusChanged;
+
+    private readonly ICapture _capture;
+    private readonly HttpClient _httpClient;
+
+    private RecognizerStatus _status = RecognizerStatus.NotStarted;
+
+    private readonly SpeechSegmenter _segmenter;
+
+    private readonly Queue<(float[] samples, bool speech)> _frameQueue = new();
+    private readonly SemaphoreSlim _processingSemaphore = new(1, 1);
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly Channel<float[]> _utterances = Channel.CreateBounded<float[]>(8);
+    private Task? _transcriptionWorker;
+    private IErrorHandler? _errorHandler;
+    private DateTime _lastError;
+    private volatile bool _stopping;
+    private bool _disposed;
+
+    private string _language = "en";
+
+    public GroqRecognizer(ICapture capture) : this(capture, new HttpClient { Timeout = TimeSpan.FromSeconds(25) }) { }
+    public GroqRecognizer(ICapture capture, HttpClient client)
+    {
+        _httpClient = client;
+        _capture = capture;
+        _segmenter = new SpeechSegmenter(capture.GetSampleRate());
+        _capture.OnDataReceived += OnDataReceived;
+    }
+
+    public void Start(string language, IErrorHandler errorHandler)
+    {
+        if (_disposed || _stopping) return;
+        _errorHandler = errorHandler;
+        Log.Information($"[GROQ] Start requested: capture={_capture.GetType().Name}, language={language}, status={_status}");
+        if (string.IsNullOrEmpty(AppConfig.ConfigObject.GroqApiKey))
+        {
+            Log.Error("[GROQ] No API key is configured!");
+            errorHandler.OnError("Groq speech API key is missing. Open settings to save one.");
+
+            return;
+        }
+        
+        if (_status == RecognizerStatus.Running) return;
+        SetStatus(RecognizerStatus.Connecting);
+        
+        _segmenter.Reset();
+        _language = language;
+        if (!_capture.Start())
+        {
+            Log.Error("[GROQ] Unable to start capture!");
+            Stop();
+
+            return;
+        }
+
+        _transcriptionWorker = Task.Run(ProcessUtterancesAsync);
+        SetStatus(RecognizerStatus.Running);
+        Log.Information("[GROQ] Started Groq recognizer");
+    }
+
+    public void Stop()
+    {
+        _stopping = true;
+        _cancellation.Cancel();
+        _utterances.Writer.TryComplete();
+        _capture.Stop();
+        _processingSemaphore.Wait();
+        try
+        {
+            _segmenter.Reset();
+            lock (_frameQueue) _frameQueue.Clear();
+        }
+        finally
+        {
+            _processingSemaphore.Release();
+        }
+        _cancellation.Cancel();
+        _transcriptionWorker?.GetAwaiter().GetResult();
+        SetStatus(RecognizerStatus.NotStarted);
+        Log.Information("[GROQ] Stopped Groq recognizer");
+    }
+
+    public RecognizerStatus Status() => _status;
+
+    private void OnDataReceived(float[] samples, bool speech)
+    {
+        if (_stopping) return;
+        lock (_frameQueue)
+        {
+            if (_frameQueue.Count >= 256) _frameQueue.Dequeue();
+            _frameQueue.Enqueue((samples, speech));
+        }
+        DrainQueue();
+    }
+
+    private void DrainQueue()
+    {
+        if (!_processingSemaphore.Wait(0)) return;
+
+        try
+        {
+            while (!_stopping)
+            {
+                (float[] samples, bool speech) frame;
+                lock (_frameQueue)
+                {
+                    if (_frameQueue.Count == 0) break;
+                    frame = _frameQueue.Dequeue();
+                }
+                _segmenter.Push(frame.samples, frame.speech, StartTranscription);
+            }
+        }
+        finally
+        {
+            _processingSemaphore.Release();
+        }
+    }
+
+    private void StartTranscription(float[] samples)
+    {
+        if (!_stopping && !_utterances.Writer.TryWrite(samples))
+            ReportError("Speech recognition is falling behind. Check the network or restart translation.");
+    }
+    private async Task ProcessUtterancesAsync()
+    {
+        try
+        {
+            await foreach (var audio in _utterances.Reader.ReadAllAsync(_cancellation.Token))
+            {
+                if (_cancellation.IsCancellationRequested) break;
+                await TranscribeAsync(audio, _capture.GetSampleRate(), _cancellation.Token);
+            }
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { }
+    }
+    private void ReportError(string message)
+    {
+        if (DateTime.UtcNow - _lastError < TimeSpan.FromSeconds(15)) return;
+        _lastError = DateTime.UtcNow;
+        _errorHandler?.OnError(message);
+    }
+
+    private async Task TranscribeAsync(float[] samples, uint sampleRate, CancellationToken cancellationToken)
+    {
+        var requestId = Guid.NewGuid().ToString("N");
+        var requestTimer = System.Diagnostics.Stopwatch.StartNew();
+        Log.Debug($"[GROQ] Transcription started: request={requestId}, samples={samples.Length}, sampleRate={sampleRate}, capture={_capture.GetType().Name}");
+        var apiKey = AppConfig.ConfigObject.GroqApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Log.Error("[GROQ] No API key configured");
+            return;
+        }
+
+        try
+        {
+            var fileContent = new ByteArrayContent(EncodeWav(samples, sampleRate));
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+            
+            using var content = new MultipartFormDataContent
+            {
+                { fileContent, "file", "audio.wav" },
+                { new StringContent("whisper-large-v3"), "model" },
+                { new StringContent("0"), "temperature" },
+                { new StringContent("verbose_json"), "response_format" },
+                { new StringContent(_language), "language" },
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/audio/transcriptions");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            request.Content = content;
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            Log.Debug($"[GROQ] Transcription response: request={requestId}, status={(int)response.StatusCode}, elapsedMs={requestTimer.ElapsedMilliseconds}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Log.Error("[GROQ] Speech recognition API returned HTTP {Status}", (int)response.StatusCode);
+                ReportError($"Groq speech recognition returned HTTP {(int)response.StatusCode}. Check credentials, quota and network.");
+                
+                return;
+            }
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            var transcript = doc.RootElement.TryGetProperty("text", out var textProp) ? textProp.GetString()?.Trim() : null;
+
+            Log.Debug($"[GROQ] Transcription parsed: request={requestId}, chars={transcript?.Length}, elapsedMs={requestTimer.ElapsedMilliseconds}");
+            if (string.IsNullOrWhiteSpace(transcript)) return;
+            if (!cancellationToken.IsCancellationRequested) OnRecognitionReceived?.Invoke(transcript, true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("[GROQ] Transcription failed: {ErrorType}", ex.GetType().Name);
+            ReportError("Groq speech recognition failed or timed out. Check credentials and network.");
+        }
+    }
+
+    private static byte[] EncodeWav(float[] samples, uint sampleRate)
+    {
+        int dataBytes = samples.Length * (BitsPerSample / 8);
+        uint byteRate = sampleRate * Channels * (BitsPerSample / 8);
+
+        using var ms = new MemoryStream(44 + dataBytes);
+        using var writer = new BinaryWriter(ms);
+
+        writer.Write("RIFF"u8);
+        writer.Write(36 + dataBytes);
+        writer.Write("WAVE"u8);
+        writer.Write("fmt "u8);
+        writer.Write(16);
+        writer.Write((ushort)1);
+        writer.Write((ushort)Channels);
+        writer.Write(sampleRate);
+        writer.Write(byteRate);
+        writer.Write((ushort)(Channels * (BitsPerSample / 8)));
+        writer.Write((ushort)BitsPerSample);
+        writer.Write("data"u8);
+        writer.Write(dataBytes);
+
+        foreach (var sample in samples)
+        {
+            var clamped = Math.Max(-1f, Math.Min(1f, sample));
+            writer.Write((short)(clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF));
+        }
+
+        return ms.ToArray();
+    }
+
+    private void SetStatus(RecognizerStatus status)
+    {
+        _status = status;
+        OnRecognizerStatusChanged?.Invoke(status);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Stop();
+        _capture.OnDataReceived -= OnDataReceived;
+        _httpClient.Dispose();
+        _processingSemaphore.Dispose();
+        _cancellation.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}

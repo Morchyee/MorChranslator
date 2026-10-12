@@ -11,7 +11,7 @@ The saved routing fields select desktop Bing (`Recognizer = 0`) -> DeepL, Englis
 | Stage | Existing implementation and consequence |
 | --- | --- |
 | Bing recognition | `Recognizers/Bing.cs` already streams audio and raises nonfinal text from `speech.hypothesis`, and final text from `speech.phrase`. It does not wait for the local Groq segmenter. The service chooses when a phrase becomes final. |
-| Translation admission | `Kikitan.OnRecognition` published nonfinal original text but enqueued translation **only when final was true**. Thus even a completed sentence in a continuing Bing hypothesis waited for the provider's final phrase. This is the primary code-level gate on the active route. |
+| Translation admission | `MorChranslator.OnRecognition` published nonfinal original text but enqueued translation **only when final was true**. Thus even a completed sentence in a continuing Bing hypothesis waited for the provider's final phrase. This is the primary code-level gate on the active route. |
 | Groq recognition | `GroqRecognizer.cs` serially POSTs complete WAV files for transcription. Its segmenter waited for 360 ms of classified silence or 20 seconds of continuous buffered audio. It emits only completed transcription responses; this integration has no streaming partial results. A short pause under 360 ms deliberately joins speech rather than submitting a fragment. |
 | Recognition backlog | Groq permits eight queued segments plus one in flight and has a 25-second HTTP timeout. Slow transcription can accumulate delay after segmentation. Shorter segments do not eliminate that backlog. |
 | Translation backlog | Desktop translation permits three pending finals plus one request in flight, drops the oldest queued final when full, and skips queued items older than ten seconds. These existing freshness policies do not preempt an already running final request. |
@@ -36,14 +36,14 @@ The Groq change trades more frequent requests and possible cuts through a word f
 
 Baseline: C# runner 24/24 passed before editing.
 
-- `dotnet build kikitan-translator.sln --no-restore -m:1 -p:SkipNpmBuild=true -p:UseSharedCompilation=false -v:q`: passed, 28 existing warnings and zero errors on the first complete build; repeated after the final direction-cache regression fix.
-- `dotnet run --project tests/DesktopTranslator.Tests --no-build --no-restore`: 37/37 passed after the final fix (13 new tests plus the existing 24, including the updated Groq cap regression).
+- `dotnet build MorChranslator.sln --no-restore -m:1 -p:SkipNpmBuild=true -p:UseSharedCompilation=false -v:q`: passed, 28 existing warnings and zero errors on the first complete build; repeated after the final direction-cache regression fix.
+- `dotnet run --project tests/MorChranslator.Tests --no-build --no-restore`: 37/37 passed after the final fix (13 new tests plus the existing 24, including the updated Groq cap regression).
 - Native subtitle executable `--self-test`: passed rendering, update, history and scroll checks.
 - `git diff --check`: passed. Existing user changes are excluded from the focused commit.
 
 Tests use controlled recognition callbacks, explicitly released fake translation requests, fake HTTP inspecting actual WAV payloads and exact sample counts. Waits have failure deadlines; tests do not assert real network wall-clock speed. Coverage includes punctuation/quotes/abbreviations/CJK, unpunctuated continuous text, source revisions, final priority, coalescing, cancellation, exact-final cache reuse and direction changes, unchanged legacy/Gemini/transcription-only paths, a 60 ms pause, the exact 360 ms silence boundary and uninterrupted speech with multiple capture packet sizes. One WAV test waits for the first request at exactly 80,000 samples before sending any further audio, proving batch submission does not require a later pause.
 
-Live microphone/system audio, Bing hypothesis cadence/punctuation, DeepL acceptance, provider charges/rate limits, word quality at Groq cuts and end-to-end latency remain unverified. Frontend files did not change; frontend checks were not repeated in this continuation. The older `release/DesktopTranslator-2.0.2-alpha.20261011-win-x64` package is historical and does **not** contain these changes. No new portable package or deployment was performed.
+Live microphone/system audio, Bing hypothesis cadence/punctuation, DeepL acceptance, provider charges/rate limits, word quality at Groq cuts and end-to-end latency remain unverified. Frontend files did not change; frontend checks were not repeated in this continuation. The older `release/MorChranslator-2.0.2-alpha.20261011-win-x64` package is historical and does **not** contain these changes. No new portable package or deployment was performed.
 
 ## Prioritized architectural continuation
 

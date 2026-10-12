@@ -1,0 +1,158 @@
+using MorChranslator.Utility;
+using Serilog;
+using SoundFlow.Abstracts.Devices;
+using SoundFlow.Backends.MiniAudio;
+using SoundFlow.Backends.MiniAudio.Enums;
+using SoundFlow.Enums;
+using SoundFlow.Extensions.WebRtc.Apm;
+using SoundFlow.Extensions.WebRtc.Apm.Modifiers;
+using SoundFlow.Structs;
+
+namespace MorChranslator.Capture;
+
+public class Microphone : ICapture, IDisposable
+{
+    public event OnData? OnDataReceived;
+    private bool _paused;
+    
+    private MiniAudioEngine _engine;
+    private WebRtcApmModifier? _apmModifier;
+    private AudioCaptureDevice? _captureDevice;
+    private IErrorHandler _errorHandler;
+    private SileroVad _vad;
+    
+    public uint GetSampleRate() => 16000;
+
+    public Microphone(string sileroModelPath, IErrorHandler errorHandler)
+    {
+        _engine = new MiniAudioEngine(backendPriority:[MiniAudioBackend.Wasapi, MiniAudioBackend.Oss]);
+        _vad = new(sileroModelPath);
+        _errorHandler = errorHandler;
+    }
+
+    public DeviceInfo[] GetCaptureDevices()
+    {
+        _engine.UpdateAudioDevicesInfo();
+
+        return _engine.CaptureDevices;
+    }
+
+    public bool Start()
+    {
+        _engine.UpdateAudioDevicesInfo();
+        if (_captureDevice != null) Stop();
+
+        DeviceInfo? device;
+        
+        var audioFormat = new AudioFormat
+        {
+            SampleRate = 16000,
+            Channels = 1,
+            Format = SampleFormat.S16,
+            Layout = ChannelLayout.Mono 
+        };
+
+        if (AppConfig.ConfigObject.Microphone.Length == 0)
+        {
+            device = _engine.CaptureDevices.First(d => d.IsDefault);
+            AppConfig.ConfigObject.Microphone = device.Value.Name;
+                
+            Log.Warning($"[MIC]  No microphone was selected, using the default device ({device.Value.Name}) for capture");
+        }
+        else if (_engine.CaptureDevices.Any(d => d.Name == AppConfig.ConfigObject.Microphone))
+        {
+            device = _engine.CaptureDevices.First(d => d.Name == AppConfig.ConfigObject.Microphone);
+        }
+        else
+        {
+            device = _engine.CaptureDevices.FirstOrDefault(d => d.IsDefault);
+            if (device == null) device = _engine.CaptureDevices[0];
+                    
+            Log.Warning($"[MIC]  The selected mic ({AppConfig.ConfigObject.Microphone}) is not available. Switching to the system default ({device.Value.Name})");
+            
+            AppConfig.ConfigObject.Microphone = device.Value.Name;
+        }
+        
+        Log.Information($"[MIC]  Starting capture using {device.Value.Name}");
+        
+        try
+        {
+            _captureDevice = _engine.InitializeCaptureDevice(device, audioFormat);
+            _captureDevice.OnAudioProcessed += AudioProcessCallback;
+            _captureDevice.Start();
+            _apmModifier = new WebRtcApmModifier(
+                device: _captureDevice,
+                aecEnabled: true,
+                agc1Enabled: true,
+                hpfEnabled: true
+            );
+        } catch (Exception e)
+        {
+            _errorHandler.OnError($"[MIC]  Error initializing capture: {e}");
+            AppConfig.ConfigObject.Microphone = "";
+            
+            if (!device.Value.IsDefault)
+            {
+                Log.Error($"[MIC]  Error initializing capture: {e}. Restarting with default mic");
+                
+                Start();
+            }
+            else
+            {
+                Log.Error($"[MIC]  Unable to start capture: {e.Message}");
+                
+                Stop();
+
+                return false;
+            }
+        }
+        
+        Log.Information("[MIC]  Capture has started");
+        
+        return true;
+    }
+
+    public void Stop()
+    {
+        if (_captureDevice == null) return;
+        
+        _captureDevice.Stop();
+        _apmModifier?.Dispose();
+        _apmModifier = null;
+        _captureDevice = null;
+        
+        Log.Information("[MIC]  Capture has stopped");
+    }
+
+    public void Pause()
+    {
+        Log.Verbose("[MIC]  Capture paused");
+        
+        _paused = true;
+    }
+
+    public void Resume()
+    {
+        Log.Verbose("[MIC]  Capture resumed");
+        
+        _paused = false;
+    }
+
+    private void AudioProcessCallback(Span<float> samples, Capability capability)
+    {
+        if (_paused) return;
+        _apmModifier?.Process(samples, samples.Length);
+
+        bool part1 = _vad.SpeechDetection(samples.Slice(0, 480));
+        bool part2 = _vad.SpeechDetection(samples.Slice(480, 480));
+
+        OnDataReceived?.Invoke(samples.ToArray(), part1 || part2);
+    }
+    public void Dispose()
+    {
+        Stop();
+        _vad.Dispose();
+        _engine.Dispose();
+    }
+
+}

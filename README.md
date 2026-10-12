@@ -1,11 +1,11 @@
-# Desktop Translator
+# MorChranslator
 
 A standalone Windows alpha application for real-time bilingual subtitles from system audio, derived from Kikitan Translator. Play a video, movie, game, stream or voice chat normally; the app captures the default Windows playback device and displays recognized source text above its translation.
 
 ## Quick start
 
-1. Extract the complete `DesktopTranslator-<version>-win-x64` folder to a writable location.
-2. Double-click **DesktopTranslator.exe**. A subtitle window and tray icon appear. No Node.js, .NET SDK or terminal is needed for daily use.
+1. Extract the complete `MorChranslator-<version>-win-x64` folder to a writable location.
+2. Double-click **MorChranslator.exe**. A subtitle window and tray icon appear. No Node.js, .NET SDK or terminal is needed for daily use.
 3. Use the tray menu → **Open settings**. Translation contains language direction and provider setup; Speech recognition configures speech service access. Paste a key and choose **Save key**; a confirmation appears after storage succeeds.
 4. Use **Start translation**, **Stop translation**, **Show/Hide subtitles**, **Subtitle appearance…** and **Exit** from the tray menu. Closing the subtitle window hides it; Exit stops the app.
 
@@ -42,20 +42,20 @@ Settings → **Subtitles** → **Customize…** (also available as **Subtitle ap
 Development requires the .NET SDK selected by `global.json` and Node.js/npm. Rust/Tauri is not required for this Windows desktop product.
 
 ```powershell
-npm ci --prefix KikitanTranslator.Photino/UserInterface
-npm test --prefix KikitanTranslator.Photino/UserInterface
-npm run build --prefix KikitanTranslator.Photino/UserInterface
-dotnet build kikitan-translator.sln -m:1
-dotnet run --project tests/DesktopTranslator.Tests --no-build --no-restore
+npm ci --prefix MorChranslator.Photino/UserInterface
+npm test --prefix MorChranslator.Photino/UserInterface
+npm run build --prefix MorChranslator.Photino/UserInterface
+dotnet build MorChranslator.sln -m:1
+dotnet run --project tests/MorChranslator.Tests --no-build --no-restore
 ```
 
 The regression runner is a dependency-free executable: it exits nonzero on failure. It uses fake HTTP transport/recognizers, plus real Windows DPAPI in isolated temporary test files. It does **not** make external API calls or capture hardware audio. The subtitle executable also has a rendering/scroll regression check:
 
 ```powershell
-& ./KikitanTranslator.Subtitles/bin/Debug/net9.0-windows/KikitanTranslator.Subtitles.exe --self-test | Out-Host
+& ./MorChranslator.Subtitles/bin/Debug/net9.0-windows/MorChranslator.Subtitles.exe --self-test | Out-Host
 ```
 
-For interactive debug settings, run `npm run dev --prefix KikitanTranslator.Photino/UserInterface` in another terminal, then `dotnet run --project KikitanTranslator.Photino`. Debug uses the Vite server at port 1420; release serves bundled frontend assets.
+For interactive debug settings, run `npm run dev --prefix MorChranslator.Photino/UserInterface` in another terminal, then `dotnet run --project MorChranslator.Photino`. Debug uses the Vite server at port 1420; release serves bundled frontend assets.
 
 The desktop settings use five focused sections and light/dark themes. See [UI design system](docs/UI_DESIGN.md) for visual rules, development-only preview instructions, accessibility checks, and platform compromises.
 
@@ -65,7 +65,7 @@ The desktop settings use five focused sections and light/dark themes. See [UI de
 ./scripts/build-release.ps1 -Version 2.0.2-alpha.1
 ```
 
-This installs locked frontend dependencies, builds the solution and frontend, runs regressions, publishes self-contained Windows x64 executables, runs subtitle rendering checks, verifies package contents and writes SHA-256 hashes. Output: `release/DesktopTranslator-<version>-win-x64/`. Use `-SkipInstall` only when dependencies have already been restored. Existing version folders are preserved; choose another version or move the existing folder to rebuild. Failed staging folders are retained for diagnosis. No upload, GitHub operation or release creation occurs.
+This installs locked frontend dependencies, builds the solution and frontend, runs regressions, publishes self-contained Windows x64 executables, runs subtitle rendering checks, verifies package contents and writes SHA-256 hashes. Output: `release/MorChranslator-<version>-win-x64/`. Use `-SkipInstall` only when dependencies have already been restored. Existing version folders are preserved; choose another version or move the existing folder to rebuild. Failed staging folders are retained for diagnosis. No upload, GitHub operation or release creation occurs.
 
 The package includes the subtitle executable, frontend assets and Silero ONNX model. It excludes application config, logs, source, debug symbols and node_modules. The verification script checks known credential patterns in text assets; this is not a guarantee against every possible arbitrary secret. Self-contained executables intentionally retain reliability over minimal size.
 
@@ -73,7 +73,7 @@ The package includes the subtitle executable, frontend assets and Silero ONNX mo
 
 `SystemLoopback` (WASAPI playback capture) → mono 16 kHz frames → Silero VAD → Bing/Groq recognition → source subtitle → bounded asynchronous translation worker → translation update with the same utterance ID → per-parent Windows named pipe → WinForms subtitle window.
 
-`KikitanTranslator.Base` contains captures, VAD, recognizers, provider abstraction, pipeline and configuration. `KikitanTranslator.Photino` is the tray-mode host, settings bridge and process supervisor. `KikitanTranslator.Subtitles` owns native rendering and the tray controls. IPC servers are restricted to the current Windows user. Pipeline starts are idempotent; settings changes explicitly restart the running pipeline. Stop cancels translations before waiting for callbacks. Default playback-device changes or unexpected capture stops trigger recovery. A crashed subtitle process is restarted. Normal Exit cancels capture/workers, closes IPC and terminates the owned subtitle child if it fails to close promptly.
+`MorChranslator.Base` contains captures, VAD, recognizers, provider abstraction, pipeline and configuration. `MorChranslator.Photino` is the tray-mode host, settings bridge and process supervisor. `MorChranslator.Subtitles` owns native rendering and the tray controls. IPC servers are restricted to the current Windows user. Pipeline starts are idempotent; settings changes explicitly restart the running pipeline. Stop cancels translations before waiting for callbacks. Default playback-device changes or unexpected capture stops trigger recovery. A crashed subtitle process is restarted. Normal Exit cancels capture/workers, closes IPC and terminates the owned subtitle child if it fails to close promptly.
 
 Translation backlog is bounded (32 utterances). Under sustained overload, source captions continue and skipped translations are reported. Subtitle IPC is also bounded; a stalled/crashed subtitle process can lose messages. History is session-only and is not a transcript archive.
 
@@ -87,10 +87,14 @@ Hardware, paid-service behavior, sleep/resume, mixed-DPI multi-monitor interacti
 
 ## Legacy compatibility
 
-VRChat microphone/chatbox/OSC, OpenVR overlay and old Tauri sources remain for compatibility and reference. They are not part of the normal desktop startup workflow. `--legacy-mode` opens the old settings workflow; `--no-ui` retains the local headless bridge. The legacy Google web translator source is retained but is not selected by the desktop/manager/console runtime paths; those use official Google Cloud instead. Legacy features are less tested than desktop mode. Automatic upstream Kikitan updates are disabled in desktop mode to prevent replacing this fork with the upstream product.
+VRChat microphone/chatbox/OSC, OpenVR overlay and old Tauri sources remain for compatibility and reference. They are not part of the normal desktop startup workflow. `--legacy-mode` opens the old settings workflow; `--no-ui` retains the local headless bridge. The legacy Google web translator source is retained but is not selected by the desktop/manager/console runtime paths; those use official Google Cloud instead. Legacy features are less tested than desktop mode. Automatic upstream MorChranslator updates are disabled in desktop mode to prevent replacing this fork with the upstream product.
 
 ## License
 
 Derived from Kikitan Translator. Original attribution and license are preserved in [LICENSE.md](LICENSE.md).
 
-For safe inspection of a portable release, `DesktopTranslator.exe --start-stopped --settings` opens the real settings window without starting audio capture, even if automatic start is saved. The flags do not change that saved preference. Translation favors recent pending speech during provider stalls and retains recognized source text when an older translation is skipped. See [performance and reliability findings](docs/PERFORMANCE.md) for queue policy, measurements, and acceptance limits.
+For safe inspection of a portable release, `MorChranslator.exe --start-stopped --settings` opens the real settings window without starting audio capture, even if automatic start is saved. The flags do not change that saved preference. Translation favors recent pending speech during provider stalls and retains recognized source text when an older translation is skipped. See [performance and reliability findings](docs/PERFORMANCE.md) for queue policy, measurements, and acceptance limits.
+
+## MorChranslator branding and compatibility
+
+Project, namespace, executable, window and new package names use **MorChranslator**. Existing user data remains in the legacy folder documented above; old and new versions share single-instance locks and IPC names. No capture, recognition, translation scheduling, subtitle GUID or event behavior was changed by the rename. See [branding compatibility](docs/RENAMING.md) and the [Chinese diagnostic testing guide](docs/DIAGNOSTIC_TESTING_ZH.md).

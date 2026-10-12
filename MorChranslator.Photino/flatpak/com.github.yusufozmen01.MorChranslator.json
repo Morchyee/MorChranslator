@@ -1,0 +1,51 @@
+{
+  "app-id": "com.github.yusufozmen01.MorChranslator",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "47",
+  "sdk": "org.gnome.Sdk",
+  "command": "MorChranslator.Photino",
+  "finish-args": [
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--share=ipc",
+    "--share=network",
+    "--device=dri",
+    "--socket=pulseaudio",
+    "--env=MorChranslator_NOT_APPIMAGE=1"
+  ],
+  "add-extensions": {
+    "org.freedesktop.Platform.ffmpeg-full": {
+      "directory": "lib/ffmpeg",
+      "version": "24.08",
+      "add-ld-path": ".",
+      "autodownload": true
+    }
+  },
+  "modules": [
+    {
+      "name": "ffmpeg-full",
+      "buildsystem": "simple",
+      "build-commands": [
+        "mkdir -p /app/lib/ffmpeg"
+      ]
+    },
+    {
+      "name": "MorChranslator",
+      "buildsystem": "simple",
+      "build-commands": [
+        "mkdir -p /app/bin",
+        "cp -r ja ko zh wwwroot /app/bin/",
+        "cp *.dll *.so *.json /app/bin/",
+        "cp MorChranslator.Photino /app/bin/",
+        "chmod +x /app/bin/MorChranslator.Photino",
+        "install -Dm644 com.github.yusufozmen01.MorChranslator.desktop /app/share/applications/com.github.yusufozmen01.MorChranslator.desktop",
+        "install -Dm644 icon.png /app/share/icons/hicolor/256x256/apps/com.github.yusufozmen01.MorChranslator.png"
+      ],
+      "sources": [
+        { "type": "dir", "path": "../bin/Release/net9.0/linux-x64", "dest": "." },
+        { "type": "dir", "path": "../Resources/wwwroot", "dest": "." },
+        { "type": "dir", "path": ".", "dest": "." }
+      ]
+    }
+  ]
+}

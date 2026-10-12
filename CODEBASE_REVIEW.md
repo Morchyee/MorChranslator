@@ -18,7 +18,7 @@ This is a source-level recheck. No builds, live API requests, microphone capture
 
 ## 1. WebSocket — direct LAN exposure fixed, local access still unrestricted
 
-**Locations:** `KikitanTranslator.Photino/Connector.cs:19–24,46`; `KikitanTranslator.Photino/Manager.cs` (`SendUpdateToUI`); `KikitanTranslator.Base/Utility/AppConfig.cs` (serialized API-key fields).
+**Locations:** `MorChranslator.Photino/Connector.cs:19–24,46`; `MorChranslator.Photino/Manager.cs` (`SendUpdateToUI`); `MorChranslator.Base/Utility/AppConfig.cs` (serialized API-key fields).
 
 Changing the listener to `ws://127.0.0.1:18378` fixes the original all-interface binding. A remote machine cannot connect directly through the host's LAN address under this configuration.
 
@@ -28,7 +28,7 @@ Any local client that can reach the port can still connect without authenticatio
 
 ## 2. Desktop capture — why the resampler runs out of audio
 
-**Location:** `KikitanTranslator.Base/Capture/Loopback.cs:68–82`.
+**Location:** `MorChranslator.Base/Capture/Loopback.cs:68–82`.
 
 There are two separate buffers in this method:
 
@@ -80,7 +80,7 @@ Recreating the entire converter for every callback would feed each buffer, but a
 
 ## 3. Busy loops — one of two fixed
 
-**Locations:** `KikitanTranslator.Photino/Manager.cs:171`; `KikitanTranslator.Photino/Program.cs:64–67`.
+**Locations:** `MorChranslator.Photino/Manager.cs:171`; `MorChranslator.Photino/Program.cs:64–67`.
 
 The microphone-monitor task is now async and uses `await Task.Delay(500)`. That loop's original defect is fixed.
 
@@ -96,7 +96,7 @@ It creates delay tasks continuously without waiting for them, consuming CPU and 
 
 ## 5. Restart — the added check prevents ordinary restarts
 
-**Location:** `KikitanTranslator.Photino/Manager.cs:281–301`.
+**Location:** `MorChranslator.Photino/Manager.cs:281–301`.
 
 The new flow is:
 
@@ -118,7 +118,7 @@ The same boolean cannot distinguish "stopped temporarily for restart" from "expl
 
 ## 7. Chatbox — wrapper flag fixed, transcription delay still zero
 
-**Locations:** `KikitanTranslator.Base/Outputs/Custom.cs`; `KikitanTranslator.Photino/Manager.cs:223–229`; `KikitanTranslator.Base/Kikitan.cs:122`.
+**Locations:** `MorChranslator.Base/Outputs/Custom.cs`; `MorChranslator.Photino/Manager.cs:223–229`; `MorChranslator.Base/MorChranslator.cs:122`.
 
 `Custom` now returns its supplied `isDelayed` flag, and the chatbox wrapper passes true. Ordinary non-Gemini final translations therefore reach the delayed worker as intended. The original wrapper bug is fixed.
 
@@ -130,7 +130,7 @@ Gemini's direct-send branch also bypasses the queue and its delay flags. If paci
 
 ## 8. Queue — mutation locking helps, but does not finish the repair
 
-**Location:** `KikitanTranslator.Base/Kikitan.cs:81–85,99–125`; `KikitanTranslator.Base/Recognizers/Bing.cs` (recognition `Task.Run` calls).
+**Location:** `MorChranslator.Base/MorChranslator.cs:81–85,99–125`; `MorChranslator.Base/Recognizers/Bing.cs` (recognition `Task.Run` calls).
 
 Both Add and removal now use `_queueLock`, which addresses the original concurrent mutation race. The earlier report should no longer describe these mutations as wholly unprotected.
 
@@ -149,7 +149,7 @@ Remaining issues:
 
 ## 11. Bing — constructor subscription needs a matching disposal unsubscribe
 
-**Locations:** `KikitanTranslator.Base/Recognizers/Bing.cs:35–38,163–180,372–375`; `KikitanTranslator.Base/Recognizers/Gemini.cs:93,144–148`.
+**Locations:** `MorChranslator.Base/Recognizers/Bing.cs:35–38,163–180,372–375`; `MorChranslator.Base/Recognizers/Gemini.cs:93,144–148`.
 
 Moving Bing's subscription to the constructor fixes repeated subscription on reconnect within one Bing instance. However, the previous unsubscribe was removed from Stop and no matching unsubscribe was added to Dispose.
 

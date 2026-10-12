@@ -4,9 +4,9 @@ param()
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$executable = Join-Path $PSScriptRoot 'DesktopTranslator.exe'
+$executable = Join-Path $PSScriptRoot 'MorChranslator.exe'
 if (!(Test-Path -LiteralPath $executable -PathType Leaf)) {
-    throw '请在诊断便携包目录中运行此脚本，保持它与 DesktopTranslator.exe 放在一起。'
+    throw '请在诊断便携包目录中运行此脚本，保持它与 MorChranslator.exe 放在一起。'
 }
 
 $identity = [Environment]::UserDomainName + '-' + [Environment]::UserName
@@ -35,7 +35,7 @@ try {
             try { $available = $existing.WaitOne(0) }
             catch [Threading.AbandonedMutexException] { $available = $true }
             if ($available) { $existing.ReleaseMutex() }
-            else { throw 'Desktop Translator 已在运行。请从托盘选择退出，而不是仅关闭设置窗口，再启动诊断。' }
+            else { throw 'MorChranslator 已在运行。请从托盘选择退出，而不是仅关闭设置窗口，再启动诊断。' }
         } finally { $existing.Dispose() }
     }
 
@@ -57,7 +57,7 @@ try {
     $startInfo.UseShellExecute = $false
     $startInfo.Arguments = '--start-stopped --settings'
     # This dictionary belongs to this child only; never change $env or persistent variables.
-    $startInfo.EnvironmentVariables['KIKITAN_LATENCY_DIAGNOSTICS'] = '1'
+    $startInfo.EnvironmentVariables['MorChranslator_LATENCY_DIAGNOSTICS'] = '1'
     Write-Host '已启用本次应用进程的延迟诊断。不会自动开始录音；请在设置中检查后点击开始。'
     Write-Host '请保留此 PowerShell 窗口，测试结束后从应用托盘选择退出，等待旧日志归位。'
     $app = [Diagnostics.Process]::Start($startInfo)

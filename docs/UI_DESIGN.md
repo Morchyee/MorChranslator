@@ -1,8 +1,8 @@
-# Desktop Translator UI design
+# MorChranslator UI design
 
 ## Purpose and direction
 
-Desktop Translator is a tray companion, not a dashboard. Its settings should explain the listening workflow, make provider setup approachable, and let users return to playback quickly. The memorable product detail is the consistent original-above-translation hierarchy, carried from the settings sample into the real subtitle window.
+MorChranslator is a tray companion, not a dashboard. Its settings should explain the listening workflow, make provider setup approachable, and let users return to playback quickly. The memorable product detail is the consistent original-above-translation hierarchy, carried from the settings sample into the real subtitle window.
 
 This phase changes presentation and settings interactions. Audio capture, VAD, recognition, translation scheduling, provider implementations, subtitle IDs, history bounds, update semantics, and scrolling ownership stay in their existing components.
 
@@ -30,7 +30,7 @@ The persistent header holds product identity, Stopped / Connecting / Listening, 
 
 The existing Gemini combined mode appears only when already configured; this redesign does not advertise an unimplemented independent Gemini translation provider. Auto-detection, per-application capture, system-theme synchronization, and launch with Windows are not invented UI options. The audio source is correctly identified as the default playback device, without pretending to know its hardware name.
 
-Normal desktop navigation contains no OSC/chatbox/VRChat controls, donations, or upstream update prompts. Legacy mode remains separate. Kikitan appears only in the attribution and unchanged internal/storage names.
+Normal desktop navigation contains no OSC/chatbox/VRChat controls, donations, or upstream update prompts. Legacy mode remains separate. MorChranslator appears only in the attribution and unchanged internal/storage names.
 
 ## Visual tokens
 
@@ -71,13 +71,13 @@ Provider requirements appear beside the selected form. Missing credentials expla
 
 Supported locales are `en` (English fallback), `zh-CN` (简体中文), and `ja-JP` (日本語). **General → Interface language** applies immediately and is independent of source/target languages and the legacy `language` setting. An absent/null `ui_language` follows Windows `CurrentUICulture`: `zh-CN`, `zh-SG`, and `zh-Hans` variants select Simplified Chinese; Japanese variants select Japanese; all others, including Traditional Chinese environments, select English. Once explicitly chosen, the canonical locale is saved and wins over system culture. Unsupported stored values resolve to English. Invalid incoming choices are rejected.
 
-Resources live in `KikitanTranslator.Photino/UserInterface/src/i18n/locales/{en,zh-CN,ja-JP}.json`. Flat semantic keys are grouped by namespace (`common`, `navigation`, `translation`, `speech`, `subtitles`, `general`, `about`, `credential`, `errors`, `native`, `preview`). React's small `LocaleProvider` and typed `translate` helper reuse the existing configuration bridge. The same JSON files are embedded in `KikitanTranslator.Resources` and read by `DesktopText` for native presentation. No additional i18n dependency, browser persistence, or second preference store is introduced. Catalog parity is enforced by TypeScript and tests; unknown keys throw rather than quietly displaying IDs. Missing values in a supported catalog fall back to English.
+Resources live in `MorChranslator.Photino/UserInterface/src/i18n/locales/{en,zh-CN,ja-JP}.json`. Flat semantic keys are grouped by namespace (`common`, `navigation`, `translation`, `speech`, `subtitles`, `general`, `about`, `credential`, `errors`, `native`, `preview`). React's small `LocaleProvider` and typed `translate` helper reuse the existing configuration bridge. The same JSON files are embedded in `MorChranslator.Resources` and read by `DesktopText` for native presentation. No additional i18n dependency, browser persistence, or second preference store is introduced. Catalog parity is enforced by TypeScript and tests; unknown keys throw rather than quietly displaying IDs. Missing values in a supported catalog fall back to English.
 
 Only presentation uses translated text. Field/provider IDs, IPC commands and states remain invariant. Subtitle status messages carry an optional `UiLanguage` field, and the child also receives the locale at launch. Changing locale updates title, tray/menu, waiting text, and an already-open appearance dialog without rebuilding subtitle blocks, altering content, moving the viewport, restarting recognition, or resetting appearance edits. Native fonts are cached per locale for the window/dialog lifetime because WinForms may retain an equal assigned font object.
 
 The shared `error-rules.json` adapts existing safe provider diagnostics into stable presentation categories (authentication, rate limit, quota, request, network, saving, generic service). React shows a localized explanation and expandable **Technical details** containing the original diagnostic. Native balloons show the localized explanation with the original detail; storage error dialogs are localized. This presentation adapter does not change service exceptions or provider networking. Unknown diagnostics retain useful detail instead of being silently discarded.
 
-Terminology: Chinese uses **语音识别**, **源语言**, **目标语言**, **原文/译文**, **窗口置顶**, and **鼠标穿透**. Japanese uses **音声認識**, **音声の言語**, **翻訳先の言語**, **原文/翻訳**, **常に最前面に表示**, and **クリック透過**. Prefer concise action labels (开始翻译 / 翻訳を開始), natural explanatory sentences, and consistent terms over literal English syntax. Desktop Translator, provider names, WebView2, API identifiers, and technical diagnostics keep their original spelling. The fixed English/Japanese preview content deliberately demonstrates bilingual hierarchy in every locale; actual subtitles are never translated by this layer. Separate legacy-mode UI retains its older localization resources.
+Terminology: Chinese uses **语音识别**, **源语言**, **目标语言**, **原文/译文**, **窗口置顶**, and **鼠标穿透**. Japanese uses **音声認識**, **音声の言語**, **翻訳先の言語**, **原文/翻訳**, **常に最前面に表示**, and **クリック透過**. Prefer concise action labels (开始翻译 / 翻訳を開始), natural explanatory sentences, and consistent terms over literal English syntax. MorChranslator, provider names, WebView2, API identifiers, and technical diagnostics keep their original spelling. The fixed English/Japanese preview content deliberately demonstrates bilingual hierarchy in every locale; actual subtitles are never translated by this layer. Separate legacy-mode UI retains its older localization resources.
 
 Typography preserves the design scale and uses installed Windows fonts only: English `Segoe UI Variable` → `Segoe UI`; Chinese `Microsoft YaHei UI` → `Microsoft YaHei` → `Segoe UI`; Japanese `Yu Gothic UI` → `Yu Gothic` → `Meiryo` → `Segoe UI`; each then falls back to system sans-serif. Native UI uses the matching regional UI family. Sample passages declare their own language, and the document, navigation names, controls, placeholders, switch descriptions, and close actions use the selected locale. Dropdown language names use locale-aware `Intl.DisplayNames`, with raw-code fallback for malformed legacy values.
 
@@ -120,11 +120,11 @@ The React subtitle page deliberately labels its sample as illustrative. The **ac
 ## Verification and developer preview
 
 ```powershell
-npm test --prefix KikitanTranslator.Photino/UserInterface
-npm run build --prefix KikitanTranslator.Photino/UserInterface
-dotnet build kikitan-translator.sln -m:1 -p:UseSharedCompilation=false
-dotnet run --project tests/DesktopTranslator.Tests --no-build --no-restore
-& ./KikitanTranslator.Subtitles/bin/Debug/net9.0-windows/KikitanTranslator.Subtitles.exe --self-test | Out-Host
+npm test --prefix MorChranslator.Photino/UserInterface
+npm run build --prefix MorChranslator.Photino/UserInterface
+dotnet build MorChranslator.sln -m:1 -p:UseSharedCompilation=false
+dotnet run --project tests/MorChranslator.Tests --no-build --no-restore
+& ./MorChranslator.Subtitles/bin/Debug/net9.0-windows/MorChranslator.Subtitles.exe --self-test | Out-Host
 ```
 
 Twenty-one frontend tests exercise credential acknowledgements, failed saves, unsubscribe behavior, subtitle controls, request identity, shared/separate drafts, retry/late acknowledgements, timeout handling, replacement drafts during removal, localization completeness/fallback, and UI-only configuration updates without browser/network/hardware access. Twenty .NET regressions cover the existing non-hardware logic plus catalog loading and persisted locale independence. Native self-tests cover the existing IDs/history/manual-scroll/bottom-follow rules plus state-specific empty messages, preview updates, locale switching, and minimum-size wrapping/no horizontal history scrollbar.
@@ -143,17 +143,17 @@ Next design work should prioritize real-device mixed-DPI and keyboard/accessibil
 
 ## Files changed in the initial design phase
 
-Frontend: `UserInterface/index.html`, `UserInterface/package.json`, `src/main.tsx`, `src/page.tsx`, `src/pages/DesktopSettings.tsx`, `src/pages/desktop.css`, `src/components/desktop/theme.ts`, `src/components/desktop/SettingsControls.tsx`, `src/components/desktop/CredentialEditor.tsx`, `src/util/photino.ts`, `src/vite-env.d.ts`, `src/dev/preview.tsx`, and `tests/desktop-bridge.test.mjs` (all under `KikitanTranslator.Photino`).
+Frontend: `UserInterface/index.html`, `UserInterface/package.json`, `src/main.tsx`, `src/page.tsx`, `src/pages/DesktopSettings.tsx`, `src/pages/desktop.css`, `src/components/desktop/theme.ts`, `src/components/desktop/SettingsControls.tsx`, `src/components/desktop/CredentialEditor.tsx`, `src/util/photino.ts`, `src/vite-env.d.ts`, `src/dev/preview.tsx`, and `tests/desktop-bridge.test.mjs` (all under `MorChranslator.Photino`).
 
-Settings integration only: `KikitanTranslator.Photino/Handlers/Control.cs`, `Handlers/UpdateConfig.cs`, and `Manager.cs`. These changes add the appearance action and durable, correlated save feedback, without modifying capture/recognition/translation logic.
+Settings integration only: `MorChranslator.Photino/Handlers/Control.cs`, `Handlers/UpdateConfig.cs`, and `Manager.cs`. These changes add the appearance action and durable, correlated save feedback, without modifying capture/recognition/translation logic.
 
-Native presentation: `KikitanTranslator.Subtitles/SubtitleWindow.cs` and new `SubtitleAppearanceDialog.cs` (including shared palette and preview self-checks).
+Native presentation: `MorChranslator.Subtitles/SubtitleWindow.cs` and new `SubtitleAppearanceDialog.cs` (including shared palette and preview self-checks).
 
 Documentation/build verification: `README.md`, `docs/UI_DESIGN.md`, `docs/MANUAL_TESTS.md`, and `scripts/build-release.ps1`.
 
 ## Resumed review changes
 
-Retained the initial information architecture, palette, spacing, typography, and native subtitle renderer. Refined `DesktopSettings.tsx`, `CredentialEditor.tsx`, `SettingsControls.tsx`, `theme.ts`, and `desktop.css` for credential-session ownership, actual combobox names, switch descriptions/focus, forced-color navigation, quiet buttons, informational/error semantics, and unique target options. Added `credentialState.ts`, `useCredentialDrafts.ts`, and `tests/credential-state.test.mjs`. Updated `UserInterface/index.html` with `public/desktop-translator.svg`, using the same existing Material Outlined caption icon as the header. Legacy icon assets remain for compatibility. Updated `SubtitleWindow.cs` only for state-specific empty copy and corresponding self-tests, plus these design/acceptance documents. No dependency, pipeline, transport, publish-script, or packaging changes were needed in this continuation.
+Retained the initial information architecture, palette, spacing, typography, and native subtitle renderer. Refined `DesktopSettings.tsx`, `CredentialEditor.tsx`, `SettingsControls.tsx`, `theme.ts`, and `desktop.css` for credential-session ownership, actual combobox names, switch descriptions/focus, forced-color navigation, quiet buttons, informational/error semantics, and unique target options. Added `credentialState.ts`, `useCredentialDrafts.ts`, and `tests/credential-state.test.mjs`. Updated `UserInterface/index.html` with `public/MorChranslator.svg`, using the same existing Material Outlined caption icon as the header. Legacy icon assets remain for compatibility. Updated `SubtitleWindow.cs` only for state-specific empty copy and corresponding self-tests, plus these design/acceptance documents. No dependency, pipeline, transport, publish-script, or packaging changes were needed in this continuation.
 
 ## Packaged product review (2026-10-02)
 
@@ -161,7 +161,7 @@ The local Windows x64 alpha.5 package was launched with `--start-stopped --setti
 
 ## Normal frontend entry (2026-10-03 correction)
 
-The normal Vite/Photino entry mounts `DesktopApp`, which subscribes to the existing host state and displays `DesktopSettings` after configuration arrives. UI selection no longer depends on `desktop_translation`: that field controls capture behavior, not product identity. Opening settings never writes it. Old `page.tsx`/Kikitan components remain in source for historical compatibility, but are not imported by the normal entry. Their donation, onboarding and updater effects do not run in the desktop shell.
+The normal Vite/Photino entry mounts `DesktopApp`, which subscribes to the existing host state and displays `DesktopSettings` after configuration arrives. UI selection no longer depends on `desktop_translation`: that field controls capture behavior, not product identity. Opening settings never writes it. Old `page.tsx`/MorChranslator components remain in source for historical compatibility, but are not imported by the normal entry. Their donation, onboarding and updater effects do not run in the desktop shell.
 
 The development fixture now mounts the same entry and responds through the host bridge, rather than directly rendering the settings component. `?preview&capture-disabled` verifies the false capture flag without changing real configuration. Production does not include the fixture. A fixture screenshot alone is not proof that a packaged application's startup displays the intended UI; inspect the actual Photino window as well.
 

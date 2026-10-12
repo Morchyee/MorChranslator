@@ -20,7 +20,7 @@ Baseline: working alpha at `7e27508`, plus three pre-existing user edits (Photin
 | P2 | Resource usage | Desktop startup created an unused microphone engine/VAD. Microphone capture is now lazy and disposed; Silero session options disposed. Groq speech buffers/queues capped; delayed output and IPC queues bounded. |
 | P2 | Logging | Verbose audio/service logging and unlimited session log size. Information default, per-file size and retention limits. |
 | P2 | IPC | Concurrent socket collection mutations and browser-origin access in headless mode. Synchronize sockets, reject browser origins, close bridge on disposal. No websocket listener is started in desktop mode. |
-| P2 | Release | Manual publish steps and old product executable. DesktopTranslator executable/product metadata, locked frontend install, scripted checks/publish, asset verification and checksum output. |
+| P2 | Release | Manual publish steps and old product executable. MorChranslator executable/product metadata, locked frontend install, scripted checks/publish, asset verification and checksum output. |
 | P2 | Tests/docs | No current regression suite, README described Rust/VRChat workflow. Dependency-free executable regression suite, WinForms presentation self-check, new desktop README and manual acceptance matrix. |
 | P3 | Optional | Global hotkeys, export, generic OpenAI/Gemini translation, per-app capture and separate background opacity deferred to avoid destabilizing the alpha. |
 
@@ -39,7 +39,7 @@ No namespace-wide rename, VAD algorithm rewrite, credential hardcoding, new scra
 - Source text stays available on failed/skipped translation. IPC history is not durable; crashing the subtitle process loses its prior visible history.
 - DPAPI encryption can fail across Windows profiles/machines. Configuration writes are blocked after failed migration, keeping the original recoverable. Migration does not secure user-created historical backups.
 - Headless bridge remains available to non-browser local tools and is not an authenticated multi-user service. Named pipes and mutexes are user/session scoped; Windows-user compromise is outside the DPAPI/IPC boundary.
-- Legacy Gemini/VRChat paths retain some older behavior/logging and receive less validation. Desktop mode does not check/install upstream Kikitan updates.
+- Legacy Gemini/VRChat paths retain some older behavior/logging and receive less validation. Desktop mode does not check/install upstream MorChranslator updates.
 - Existing generated-designer, async-handler and obsolete OpenVR/Skia warnings are intentionally not broadly refactored.
 
 See `VALIDATION.md` in the repository for executed checks and their limits; manual checks also ship with the package.

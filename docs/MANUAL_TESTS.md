@@ -2,7 +2,7 @@
 
 These tests require Windows audio hardware and/or real provider credentials. Automated fake-provider tests do not substitute for them.
 
-1. **First launch and tray:** extract a complete release on a clean Windows user profile; double-click DesktopTranslator.exe. Confirm one host, one subtitle process and one tray icon. Launch again and verify no duplicate. Close subtitles, reopen from tray, open/close settings repeatedly.
+1. **First launch and tray:** extract a complete release on a clean Windows user profile; double-click MorChranslator.exe. Confirm one host, one subtitle process and one tray icon. Launch again and verify no duplicate. Close subtitles, reopen from tray, open/close settings repeatedly.
 2. **Recognition/direction:** play English speech with English → Japanese, then reverse the languages. Test Bing and Groq Whisper separately. Verify original text appears before translation and the translation belongs to that same block. Test transcription-only.
 3. **Providers/failures:** test valid Groq, Google Cloud and DeepL API keys. Test missing/wrong keys, disabled API, quota/rate limits and unsupported languages. Source captions must remain and errors must be understandable. Do not share keys/logs.
 4. **Scroll/history:** feed long sentences and rapid partials. Verify no visible top-to-bottom scroll or flicker. Scroll upward and receive new/translated entries; stay where reading. Scroll to bottom and verify natural following. Test history 3/5/50, both text visibility toggles and font sizes 10/36.

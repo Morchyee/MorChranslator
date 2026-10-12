@@ -9,16 +9,16 @@
 在 PowerShell 中为**包含本次源码的开发构建**开启：
 
 ```powershell
-$env:KIKITAN_LATENCY_DIAGNOSTICS = '1'
-dotnet run --project .\KikitanTranslator.Photino --no-build -- --start-stopped --settings
+$env:MorChranslator_LATENCY_DIAGNOSTICS = '1'
+dotnet run --project .\MorChranslator.Photino --no-build -- --start-stopped --settings
 ```
 
-本次验证的是 Debug 开发构建。Debug 设置窗口连接 `http://localhost:1420`，需要在另一终端运行现有前端开发服务器（已安装依赖时：进入 `KikitanTranslator.Photino/UserInterface`，执行 `npm run dev`）。启动前退出其他 Desktop Translator 实例；已有单实例保护会让第二个进程直接退出。现有 portable release **不包含**此功能，给旧 EXE 设置变量不会增加埋点。无需为诊断重新输入或导出凭据。
+本次验证的是 Debug 开发构建。Debug 设置窗口连接 `http://localhost:1420`，需要在另一终端运行现有前端开发服务器（已安装依赖时：进入 `MorChranslator.Photino/UserInterface`，执行 `npm run dev`）。启动前退出其他 MorChranslator 实例；已有单实例保护会让第二个进程直接退出。本次 MorChranslator 便携包已包含该功能，可使用随包 Start-LatencyDiagnostics.ps1；不含埋点的历史 EXE 无法通过变量补充功能。无需为诊断重新输入或导出凭据。
 
 关闭应用后执行以下命令，再重新启动；运行中的进程不会动态切换：
 
 ```powershell
-Remove-Item Env:KIKITAN_LATENCY_DIAGNOSTICS -ErrorAction SilentlyContinue
+Remove-Item Env:MorChranslator_LATENCY_DIAGNOSTICS -ErrorAction SilentlyContinue
 ```
 
 ## 输出位置和隐私边界
@@ -28,7 +28,7 @@ Remove-Item Env:KIKITAN_LATENCY_DIAGNOSTICS -ErrorAction SilentlyContinue
 诊断 API 只接受固定事件枚举、GUID、请求序号、时间戳、计数和 HTTP 状态码。不会接收或输出音频、原文、译文、URL、授权头、异常消息、API key 或配置。正文由现有业务管道处理，诊断队列只保留数值元数据。**不要分享整个现有日志**：其他既有日志不属于此隐私保证。只提取 `[LATENCY]` 后的 JSON，人工检查后分享：
 
 ```powershell
-$diagnosticLog = Get-ChildItem (Join-Path $env:APPDATA 'Kikitan Translator\logs') -Filter *.log |
+$diagnosticLog = Get-ChildItem (Join-Path $env:APPDATA 'MorChranslator\logs') -Filter *.log |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
 Get-Content -LiteralPath $diagnosticLog.FullName | ForEach-Object {
     if ($_ -match '\[LATENCY\] (\{.*\})$') { $Matches[1] }
@@ -45,7 +45,7 @@ Get-Content -LiteralPath $diagnosticLog.FullName | ForEach-Object {
 - `preview`：是否预览工作项。区分预览和 final 时结合事件类型，不依赖日志行顺序。
 - `atMs`：从诊断初始化起经过的单调时间。Serilog 行首墙钟仅用于定位文件；不可用墙钟相减计算延迟。
 - `elapsedMs`：该事件定义的阶段耗时；无可靠阶段起点时为 null。
-- `recognitionMs`：从触发当前工作项/原文事件的识别回调进入 `Kikitan.OnRecognition` 起，到事件记录时的时间。
+- `recognitionMs`：从触发当前工作项/原文事件的识别回调进入 `MorChranslator.OnRecognition` 起，到事件记录时的时间。
 - `firstRecognitionMs`：从同一 unit 的第一个已接受识别回调起，到当前事件记录时的时间。final-only Groq 的起点就是 final 回调；不能覆盖识别前的音频分段或上传等待。
 - `value`：事件专用整数，HTTP 结果为状态码、HttpStarted 为从 1 开始的尝试序号、RecognitionPartialCount 为该 unit 的 partial 回调总数；其他默认 0。
 
@@ -111,10 +111,12 @@ Get-Content -LiteralPath $diagnosticLog.FullName | ForEach-Object {
 自定义可执行测试 runner 使用假时钟、假识别器/翻译器、假 HTTP 和受控 IPC transport。另有本地真实命名管道测试，验证协议、Unicode 和 flush 完成；没有调用真实云服务、采集用户音频或证明 UI 已绘制。
 
 ```powershell
-dotnet build kikitan-translator.sln --no-restore -m:1 -p:SkipNpmBuild=true -p:UseSharedCompilation=false -v:q
-dotnet run --project tests/DesktopTranslator.Tests --no-build --no-restore
+dotnet build MorChranslator.sln --no-restore -m:1 -p:SkipNpmBuild=true -p:UseSharedCompilation=false -v:q
+dotnet run --project tests/MorChranslator.Tests --no-build --no-restore
 ```
 
 本次不修改 frontend，故不重跑 frontend tests，不发布/打包。最终实际结果与警告见根目录 PROGRESS.md。
 
 下一步先收集以上真实诊断样本，再决定是否需要 receiver 端 ACK/绘制时间，以及音频段/识别单元的明确关联。当前缺少音频 onset→识别单元映射、Bing 原生流时间对齐、Groq 分段/上传队列计时和 UI render ACK；不可用估计补齐。十秒 expiration 分支及真实两秒/二十秒预算触发尚未以虚拟调度器覆盖；不要为测量而先改调度/识别行为。本里程碑到此结束。
+
+旧环境变量 `KIKITAN_LATENCY_DIAGNOSTICS=1` 仍作为兼容别名有效；参见 [品牌兼容说明](RENAMING.md)。

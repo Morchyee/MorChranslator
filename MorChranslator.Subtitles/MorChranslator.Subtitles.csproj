@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net9.0-windows</TargetFramework>
+        <UseWindowsForms>true</UseWindowsForms>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <ApplicationIcon>../MorChranslator.Photino/Resources/wwwroot/MorChranslator_logo.ico</ApplicationIcon>
+    </PropertyGroup>
+    <ItemGroup><ProjectReference Include="../MorChranslator.Resources/MorChranslator.Resources.csproj" /></ItemGroup>
+</Project>

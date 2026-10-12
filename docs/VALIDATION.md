@@ -1,12 +1,12 @@
 # Validation record — 2026-10-02
 
-Final product package: `release/DesktopTranslator-2.0.2-alpha.2-win-x64/` (~236.7 MiB), including `DesktopTranslator.exe`, `KikitanTranslator.Subtitles.exe`, bundled frontend and Silero VAD model. Earlier release directories were preserved.
+Final product package: `release/MorChranslator-2.0.2-alpha.2-win-x64/` (~236.7 MiB), including `MorChranslator.exe`, `MorChranslator.Subtitles.exe`, bundled frontend and Silero VAD model. Earlier release directories were preserved.
 
 | Check | Result |
 |---|---|
-| `dotnet build kikitan-translator.sln` | Passed; 0 errors. Existing nullable, generated resource, async-handler and legacy overlay warnings remain. |
+| `dotnet build MorChranslator.sln` | Passed; 0 errors. Existing nullable, generated resource, async-handler and legacy overlay warnings remain. |
 | Dependency-free regression executable | **16/16 passed**, no external HTTP calls or audio hardware used. |
-| `npm run build --prefix KikitanTranslator.Photino/UserInterface` | Passed: TypeScript checking and Vite production build. Browserslist age warning remains. |
+| `npm run build --prefix MorChranslator.Photino/UserInterface` | Passed: TypeScript checking and Vite production build. Browserslist age warning remains. |
 | Self-contained `win-x64` publish via release script | Passed for both host and subtitle executables. No Velopack/GitHub upload operation. |
 | Published subtitle `--self-test` | Passed: actual WinForms construction, bounded history, control identity, translation updates, manual scroll retention, bottom following and wrapping/resize checks. No user preferences written. |
 | Release-content inspection | No source, application config, logs, node_modules, debug symbols or known credential patterns found in text assets. Required files present. |

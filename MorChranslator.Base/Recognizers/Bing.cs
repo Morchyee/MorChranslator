@@ -1,0 +1,471 @@
+using System.Buffers.Binary;
+using System.Globalization;
+using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Text;
+using MorChranslator.Capture;
+using MorChranslator.Types.Bing;
+using MorChranslator.Utility;
+using Newtonsoft.Json;
+using Serilog;
+using Websocket.Client;
+
+namespace MorChranslator.Recognizers;
+
+public class Bing : IRecognizer
+{
+    public event OnRecognition? OnRecognitionReceived;
+    public event OnRecognizerStatus? OnRecognizerStatusChanged;
+
+    private WebsocketClient _client;
+    private ICapture _capture;
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly List<Task> _callbackTasks = [];
+    private volatile bool _disposed;
+    private volatile bool _stopping;
+    private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    
+    private RecognizerStatus _status;
+
+    private string _connectionId;
+    private string _currentRequestId;
+    private uint _streamIdCounter = 1;
+    private string? _currentStreamTag;
+    private string _language;
+
+    private long _bytesSend;
+    
+    private readonly uint RESTART_LIMIT = 20;
+
+    public Bing(ICapture capture)
+    {
+        _capture = capture;
+        _capture.OnDataReceived += OnAudioData;
+    }
+
+    private void Reset()
+    {
+        _connectionId = GenerateUUID();
+        _currentRequestId = GenerateUUID();
+        _streamIdCounter = 1;
+        _currentStreamTag = null;
+        _bytesSend = 0;
+        _capture.Stop();
+        
+        Log.Information("[BING] Configuration has been resetted");
+    }
+    
+    public void Start(string language, IErrorHandler errorHandler)
+    {
+        if (_disposed || _client != null) return;
+        _connectionId = GenerateUUID();
+        Log.Information($"[BING] Starting recognizer: capture={_capture.GetType().Name}, language={language}, status={_status}");
+        ChangeRecognizerStatus(RecognizerStatus.Connecting);
+        
+        _language = language;
+        var url = $"wss://speech.platform.bing.com/speech/recognition/edge/interactive/v1?TrustedClientToken={Constants.BING_TRUSTED_TOKEN}&Sec-MS-GEC={GenerateSecMsSec()}&Sec-MS-GEC-Version={Constants.BING_MS_VERSION}&language={_language}&profanity=raw";
+
+        var factory = new Func<ClientWebSocket>(() =>
+        {
+            var client = new ClientWebSocket();
+            client.Options.SetRequestHeader("X-ConnectionId", _connectionId);
+            return client;
+        });
+
+        _client = new WebsocketClient(new Uri(url), factory)
+        {
+            ErrorReconnectTimeout = TimeSpan.FromSeconds(5),
+            LostReconnectTimeout = TimeSpan.FromSeconds(2)
+        };
+        
+        _client.ReconnectionHappened.Subscribe(info => RunCallback(async () =>
+        {
+            if (_disposed) return;
+            Log.Information($"[BING] Connection event: type={info.Type}, status={_status}, capture={_capture.GetType().Name}");
+            ChangeRecognizerStatus(RecognizerStatus.Connecting);
+            
+            Reset();
+            Log.Information($"[BING] Connection setup started: connection={_connectionId}, request={_currentRequestId}");
+            try { await Task.Delay(100, _lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            if (_disposed) return;
+            
+            var configPayload = new
+            {
+                context = new
+                {
+                    audio = new
+                    {
+                        source = new
+                        {
+                            bitspersample = "16",
+                            channelcount = "1",
+                            model = "",
+                            samplerate = _capture.GetSampleRate().ToString(),
+                            type = "Stream"
+                        }
+                    },
+                    os = new { name = "Client", platform = "Windows", version = "10" },
+                    system = new { build = "Windows-x64", name = "SpeechSDK", version = "1.15.0" }
+                }
+            };
+            
+            _client.Send(CreateTextMessage("speech.config", JsonConvert.SerializeObject(configPayload), "application/json", null));
+            Log.Verbose("[BING] Speech configuration has been sent");
+            
+            var contextPayload = new
+            {
+                audio = new
+                {
+                    streams = new Dictionary<string, object>
+                    {
+                        { "1", null }
+                    }
+                }
+            };
+
+            try { await Task.Delay(100, _lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            if (_disposed) return;
+            _client.Send(CreateTextMessage("speech.context", JsonConvert.SerializeObject(contextPayload), null, _currentRequestId));
+            Log.Verbose("[BING] Speech context has been sent");
+            
+            try { await Task.Delay(100, _lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            if (_disposed) return;
+            _client.Send(CreateBinaryMessage("audio", $"{_streamIdCounter}", _currentRequestId, CreateWavHeader(), "audio/x-wav"));
+            Log.Verbose("[BING] Wav header has been sent");
+
+            if (_disposed) return;
+            if (!_capture.Start())
+            {
+                Log.Error("[BING] Unable to start capture!");
+                Stop();
+
+                return;
+            }
+            if (_disposed) return;
+            
+            Log.Information("[BING] Bing recognizer has started");
+        }));
+        
+        _client.MessageReceived.Subscribe(message =>
+        {
+            if (_disposed) return;
+            if (message.Text == null || _stopping) return;
+            try
+            {
+            var (path, json) = ParseWebsocketMessage(message.Text);
+            switch (path)
+            {
+                case "turn.start":
+                    TurnStart? start = JsonConvert.DeserializeObject<TurnStart>(json);
+                    _currentStreamTag = start?.Context.ServiceTag;
+                    
+                    ChangeRecognizerStatus(RecognizerStatus.Running);
+                    
+                    break;
+                case "turn.end":
+                    Log.Debug($"[BING] Turn ended: connection={_connectionId}, request={_currentRequestId}, stream={_streamIdCounter}, audioBytesSent={_bytesSend}");
+                    RunCallback(RestartTurn);
+                    
+                    break;
+                case "speech.hypothesis":
+                    using (SpeechData? data = JsonConvert.DeserializeObject<SpeechData>(json))
+                    {
+                        if (data?.Text != null)
+                        {
+                            var text = data.Text;
+                            OnRecognitionReceived?.Invoke(text, false);
+                        }
+                    }
+                    
+                    break;
+                case "speech.phrase":
+                    using (SpeechData? data = JsonConvert.DeserializeObject<SpeechData>(json))
+                    {
+                        if (data?.DisplayText != null)
+                        {
+                            var text = data.DisplayText;
+                            OnRecognitionReceived?.Invoke(text, true);
+                        }
+                    }
+                    
+                    break;
+            }
+            }
+            catch (Exception e) { Log.Warning("[BING] Invalid service message: {ErrorType}", e.GetType().Name); }
+        });
+        _client.DisconnectionHappened.Subscribe(info =>
+        {
+            if (_disposed || _stopping) { info.CancelReconnection = true; return; }
+            _capture.Pause();
+            ChangeRecognizerStatus(RecognizerStatus.Connecting);
+            Log.Warning("[BING] Connection interrupted: {Reason}. Reconnecting automatically.", info.Type);
+        });
+
+        _client.Start();
+    }   
+
+    public void Stop()
+    {
+        _stopping = true;
+        if (_client != null) _client.IsReconnectionEnabled = false;
+        _lifetime.Cancel();
+        _capture.Stop();
+        _client?.Stop(WebSocketCloseStatus.NormalClosure, "User request");
+        ChangeRecognizerStatus(RecognizerStatus.NotStarted);
+         
+        Log.Information("[BING] Bing recognizer has stopped");
+    }
+    
+    public RecognizerStatus Status() => _status;
+
+    private void OnAudioData(float[] samples, bool speech)
+    {
+        if (_disposed || _stopping || _client == null || !_client.IsRunning) return;
+        var byteArray = new byte[samples.Length * 2]; 
+
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float sample = samples[i];
+            if (sample > 1.0f) sample = 1.0f;
+            if (sample < -1.0f) sample = -1.0f;
+                    
+            short shortSample = (short)(sample * short.MaxValue);
+                    
+            byteArray[i * 2] = (byte)(shortSample & 0xFF);
+            byteArray[i * 2 + 1] = (byte)((shortSample >> 8) & 0xFF);
+        }
+
+        _bytesSend += byteArray.Length;
+        _client.Send(CreateBinaryMessage("audio", $"{_streamIdCounter}", _currentRequestId, byteArray, null));
+    }
+
+    private async Task RestartTurn()
+    {
+        try
+        {
+            await RestartTurnCore();
+        }
+        catch (OperationCanceledException) when (_disposed || _stopping)
+        {
+        }
+        catch (Exception e)
+        {
+            Log.Error(e, "[BING] Unable to restart speech turn");
+        }
+    }
+
+    private void RunCallback(Func<Task> callback)
+    {
+        lock (_callbackTasks)
+        {
+            if (_disposed) return;
+            _callbackTasks.RemoveAll(task => task.IsCompleted);
+            _callbackTasks.Add(Task.Run(async () =>
+            {
+                try
+                {
+                    await _sessionGate.WaitAsync(_lifetime.Token);
+                    try { if (!_disposed && !_stopping) await callback(); }
+                    finally { _sessionGate.Release(); }
+                }
+                catch (OperationCanceledException) when (_disposed || _stopping)
+                {
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e, "[BING] WebSocket callback failed");
+                }
+            }));
+        }
+    }
+
+    private async Task RestartTurnCore()
+    {
+        if (_disposed) return;
+        if (!_client.IsRunning) return;
+
+        _capture.Pause();
+        _currentRequestId = GenerateUUID();
+        _streamIdCounter++;
+
+        if (_streamIdCounter >= RESTART_LIMIT)
+        {
+            Log.Verbose("[BING] Stream ID counter limit has been reached. Restarting Bing recognizer...");
+            
+            await _client.Reconnect();
+
+            return;
+        }
+        
+        _capture.Pause();
+
+        var bps = _capture.GetSampleRate() * 2;
+        var secondsSent = (decimal)_bytesSend / bps;
+        var offset100ns = Math.Floor((decimal)(secondsSent * 10_000_000));
+
+        var contextPayload = new
+        {
+            audio = new
+            {
+                streams = new Dictionary<string, object> 
+                {
+                    { "1", null }
+                }
+            },
+            continuation = new
+            {
+                audio = new
+                {
+                    streams = new Dictionary<string, object>
+                    {
+                        { "1", new
+                        {
+                            offset = offset100ns.ToString() 
+                        } }
+                    }
+                },
+                previousServiceTag = _currentStreamTag
+            }
+        };
+        
+        _client.Send(CreateTextMessage("speech.context", JsonConvert.SerializeObject(contextPayload), "application/json", _currentRequestId));
+        Log.Verbose("[BING] Sent speech context");
+        
+        try { await Task.Delay(50, _lifetime.Token); }
+        catch (OperationCanceledException) { return; }
+        _client.Send(CreateBinaryMessage("audio", $"{_streamIdCounter}", _currentRequestId, CreateWavHeader(), "audio/x-wav"));
+        Log.Verbose("[BING] Sent wav header");
+        
+        try { await Task.Delay(25, _lifetime.Token); }
+        catch (OperationCanceledException) { return; }
+        if (_disposed) return;
+        _capture.Resume();
+    }
+
+    private void ChangeRecognizerStatus(RecognizerStatus status)
+    {
+        Log.Information($"[BING] Status changed: {_status} -> {status}, connection={_connectionId}, capture={_capture.GetType().Name}");
+        _status = status;
+        OnRecognizerStatusChanged?.Invoke(status);
+    }
+    
+    private (string, string) ParseWebsocketMessage(string msg)
+    {
+        var path = "";
+        var lines = msg.Split("\n");
+        var i = 0;
+
+        for (;i < lines.Length; i++)
+        {
+            if (lines[i].Contains("Path:")) path = lines[i].Replace("Path:", "").Trim();
+            if (lines[i].Contains('{')) break;
+        }
+
+        var jsonObj = "";
+
+        for (; i < lines.Length; i++)
+        {
+            jsonObj += lines[i] + '\n';
+        }
+
+        return (path, jsonObj);
+    }
+    
+    private string CreateTextMessage(string path, string body, string? contentType, string? requestId)
+    {
+        List<string> headers = [$"X-Timestamp:{GetTimestamp()}", $"Path:{path}"];
+
+        if (requestId != null) headers.Add($"X-RequestId:{requestId}");
+        if (contentType != null) headers.Add($"Content-Type:{contentType}");
+
+        return $"{string.Join("\r\n", headers)}\r\n\r\n{body}";
+    }
+    private byte[] CreateBinaryMessage(string path, string? streamId, string requestId, byte[] data, string? contentType)
+    {
+        var headers = new List<string>
+        {
+            $"X-Timestamp:{GetTimestamp()}",
+            $"Path:{path}",
+            $"X-RequestId:{requestId}"
+        };
+
+        if (!string.IsNullOrEmpty(contentType)) headers.Add($"Content-Type:{contentType}");
+        if (!string.IsNullOrEmpty(streamId)) headers.Add($"X-StreamId:{streamId}");
+
+        string headerStr = string.Join("\r\n", headers);
+        byte[] headerBytes = Encoding.UTF8.GetBytes(headerStr);
+        ushort headerLen = (ushort)headerBytes.Length;
+
+        byte[] result = new byte[2 + headerLen + data.Length];
+        
+        BinaryPrimitives.WriteUInt16BigEndian(result.AsSpan(0, 2), headerLen);
+            
+        Buffer.BlockCopy(headerBytes, 0, result, 2, headerLen);
+        Buffer.BlockCopy(data, 0, result, 2 + headerLen, data.Length);
+
+        return result;
+    }
+    private byte[] CreateWavHeader()
+    {
+        using var ms = new MemoryStream(44);
+        using var writer = new BinaryWriter(ms, Encoding.ASCII);
+    
+        ushort channels = 1;
+        ushort bitsPerSample = 16;
+        ushort blockAlign = (ushort)(bitsPerSample / 8);
+        int sampleRate = (int)_capture.GetSampleRate();
+        int byteRate = sampleRate * (bitsPerSample / 8);
+        
+        writer.Write("RIFF"u8.ToArray());
+        writer.Write(0u);
+        writer.Write("WAVE"u8.ToArray());
+
+        writer.Write("fmt "u8.ToArray());
+        writer.Write(16u);
+        writer.Write((ushort)1);
+        writer.Write(channels);            
+        writer.Write(sampleRate);          
+        writer.Write(byteRate);            
+        writer.Write(blockAlign);          
+        writer.Write(bitsPerSample);       
+
+        writer.Write("data"u8.ToArray());
+        writer.Write(0u);
+
+        return ms.ToArray();
+    }
+    
+    private string GenerateUUID() => Guid.NewGuid().ToString().Replace("-", "");
+    private string GenerateSecMsSec()
+    {
+        long ticks = DateTime.UtcNow.ToFileTimeUtc();
+        long rounded = ticks - (ticks % 300_000_000L);
+
+        string data = $"{rounded}{Constants.BING_TRUSTED_TOKEN}";
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(data));
+
+        return Convert.ToHexString(hash);
+    }
+    private string GetTimestamp() => DateTime.UtcNow.ToString("yyyy-MM-ddTHH\\:mm\\:ssZ", CultureInfo.InvariantCulture);
+
+    public void Dispose()
+    {
+        Task[] callbacks;
+        lock (_callbackTasks)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            callbacks = _callbackTasks.ToArray();
+        }
+        _lifetime.Cancel();
+        _capture.OnDataReceived -= OnAudioData;
+        Stop();
+        _client?.Dispose();
+        Task.WhenAll(callbacks).GetAwaiter().GetResult();
+        _sessionGate.Dispose();
+        _lifetime.Dispose();
+    }
+}

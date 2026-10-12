@@ -1,0 +1,52 @@
+using MorChranslator.Utility;
+using Serilog;
+
+namespace MorChranslator.Base;
+
+public static class Logger
+{
+    public static void Initialize()
+    {
+        var logsDirectory = Path.Combine(AppConfig.GetAppFolder(), "logs");
+        Directory.CreateDirectory(logsDirectory);
+
+        var logPath = Path.Combine([
+            logsDirectory, $"{DateTime.Now:yyyy-MM-ddTHH\\-mm\\-ss.fffffffZ}.log"
+        ]);
+
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .WriteTo.File(logPath, fileSizeLimitBytes: 5_000_000, rollOnFileSizeLimit: true, retainedFileCountLimit: 7,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .WriteTo.Console()
+            .CreateLogger();
+
+        Log.Information("[MorChranslator] Logger has been initialized!");
+        Diagnostics.LatencyDiagnostics.Initialize();
+        
+        try
+        {
+            var oldLogs = new DirectoryInfo(logsDirectory).GetFiles("*.log")
+                .Where(file => !string.Equals(file.FullName, logPath, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .ThenByDescending(file => file.Name)
+                .Skip(6);
+
+            foreach (var file in oldLogs)
+            {
+                try
+                {
+                    file.Delete();
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    Log.Warning(e, $"Unable to delete old log file: {file.Name}");
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Log.Warning(e, "Unable to enumerate old log files for cleanup");
+        }
+    }
+}

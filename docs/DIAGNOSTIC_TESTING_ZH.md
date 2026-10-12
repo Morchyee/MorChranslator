@@ -1,18 +1,18 @@
-# Kikitan Translator 英语→简体中文延迟测试
+# MorChranslator 英语→简体中文延迟测试
 
-此诊断测试包的应用源码固定为 **5fc56a08c95dd21c490fa729ec8fb6a9ee373a92**。不是正式发布认证；没有修改识别、翻译、字幕算法或诊断事件定义。无需 .NET SDK、Node 或 Vite，Windows x64 上需有 Microsoft Edge WebView2 Runtime。
+MorChranslator 保留提交 **5fc56a0** 引入的诊断功能，源码版本以本包发布说明为准。不是正式发布认证；本次品牌重命名没有修改识别、翻译、字幕算法或诊断事件定义。无需 .NET SDK、Node 或 Vite，Windows x64 上需有 Microsoft Edge WebView2 Runtime。
 
 ## 启动
 
-1. 完整解压 ZIP，不要只复制 EXE。先从其他 Desktop Translator 的**托盘菜单选择退出**；仅关闭/最小化设置窗口并不会结束进程，单实例保护会阻止新实例。
+1. 完整解压 ZIP，不要只复制 EXE。先从其他 MorChranslator 的**托盘菜单选择退出**；仅关闭/最小化设置窗口并不会结束进程，单实例保护会阻止新实例。
 2. 在解压目录打开 PowerShell，运行：
 
    ```powershell
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Start-LatencyDiagnostics.ps1
    ```
 
-   `Bypass` 只作用于此 PowerShell 进程，不修改执行策略；脚本未签名，请先检查脚本。脚本仅在新应用进程环境中设置 `KIKITAN_LATENCY_DIAGNOSTICS=1`，不修改当前 shell、系统或用户环境变量。不自动开始捕获，启动后显示设置。
-3. 保留启动器窗口，测试结束后等待它完成日志归档及旧日志归位。直接双击 `DesktopTranslator.exe` 为正常模式，默认不启用诊断（除非你自行在其他环境中持久设置过该变量）。
+   `Bypass` 只作用于此 PowerShell 进程，不修改执行策略；脚本未签名，请先检查脚本。脚本仅在新应用进程环境中设置 `MorChranslator_LATENCY_DIAGNOSTICS=1`，不修改当前 shell、系统或用户环境变量。不自动开始捕获，启动后显示设置。
+3. 保留启动器窗口，测试结束后等待它完成日志归档及旧日志归位。直接双击 `MorChranslator.exe` 为正常模式，默认不启用诊断（除非你自行在其他环境中持久设置过该变量）。
 
 启动器不读取、复制、重置或导出配置/凭据，应用沿用正常的本机设置，手动更改设置仍会按应用既有逻辑保存。凭据只在本机配置。不要同时启动另一个普通/旧版应用，也不要在测试期间运行共用日志目录的旧命令行程序。
 

@@ -1,0 +1,30 @@
+﻿using BuildSoft.VRChat.Osc;
+using BuildSoft.VRChat.Osc.Chatbox;
+using MorChranslator.Utility;
+using Serilog;
+
+namespace MorChranslator.Base.Outputs;
+
+public class Chatbox : IOutput
+{
+    public Chatbox() => OscConnectionSettings.SendPort = AppConfig.ConfigObject.OscPort;
+    
+    public void Send(string recognized, string translated, bool final)
+    {
+        try
+        {
+            OscChatbox.SetIsTyping(!final);
+            if (!final && !AppConfig.ConfigObject.SendWithoutWaitingForFinish) return;
+            
+            if (AppConfig.ConfigObject.SpeechToTextOnly) OscChatbox.SendMessage(recognized, true);
+            else if (AppConfig.ConfigObject.TranslationOnly) OscChatbox.SendMessage(translated, true);
+            else OscChatbox.SendMessage($"{translated} ({recognized})", true);
+            Log.Debug($"[OSC]  Chatbox send completed: port={AppConfig.ConfigObject.OscPort}, final={final}, sourceChars={recognized.Length}, translationChars={translated.Length}");
+        } catch (Exception e)
+        {
+            Log.Error($"[OSC]  Error sending OSC message! Reason: {e}");
+        }
+    }
+
+    public bool IsDelayed() => true;
+}

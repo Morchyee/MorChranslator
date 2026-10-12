@@ -33,7 +33,7 @@ Long-running playback and provider outages; sleep/resume and device changes; mix
 
 ## Measured packaged application behavior
 
-Local Windows run of `DesktopTranslator-0.2.0-alpha.5-win-x64` on 2026-10-02, translation stopped using `--start-stopped --settings`. Measurements use Windows Process working set/private bytes/handle counters and CPU-time differences, with the owned process tree identified by parent PID. No external speech/translation request was made. Samples are short observations, not a before/after benchmark or proof of leak-free operation.
+Local Windows run of `DesktopTranslator-0.2.0-alpha.5-win-x64` (historical package name before rebranding) on 2026-10-02, translation stopped using `--start-stopped --settings`. Measurements use Windows Process working set/private bytes/handle counters and CPU-time differences, with the owned process tree identified by parent PID. No external speech/translation request was made. Samples are short observations, not a before/after benchmark or proof of leak-free operation.
 
 | State | Process | Working set MiB | Private MiB | Handles | CPU seconds in interval |
 | --- | --- | ---: | ---: | ---: | ---: |

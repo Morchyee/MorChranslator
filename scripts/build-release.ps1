@@ -8,8 +8,10 @@ Set-StrictMode -Version Latest
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$') { throw 'Use a semantic version such as 2.0.2-alpha.1.' }
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $releaseRoot = Join-Path $repoRoot 'release'
-$destination = Join-Path $releaseRoot "DesktopTranslator-$Version-win-x64"
+$destination = Join-Path $releaseRoot "MorChranslator-$Version-win-x64"
 if (Test-Path -LiteralPath $destination) { throw "Release already exists: $destination. Choose a new version or move it before rebuilding." }
+$zipPath = "$destination.zip"
+if ((Test-Path -LiteralPath $zipPath) -or (Test-Path -LiteralPath "$zipPath.sha256")) { throw 'ZIP/checksum already exists. Choose a new version.' }
 $staging = Join-Path $releaseRoot ('.staging-' + [guid]::NewGuid().ToString('N'))
 function Run([string]$Program, [string[]]$Arguments) {
     & $Program @Arguments | Out-Host
@@ -17,23 +19,23 @@ function Run([string]$Program, [string[]]$Arguments) {
 }
 Push-Location $repoRoot
 try {
-    $frontend = Join-Path $repoRoot 'KikitanTranslator.Photino/UserInterface'
+    $frontend = Join-Path $repoRoot 'MorChranslator.Photino/UserInterface'
     if (!$SkipInstall) { Run npm @('ci', '--prefix', $frontend, '--no-audit', '--no-fund') }
     Run npm @('test', '--prefix', $frontend)
     Run npm @('run', 'build', '--prefix', $frontend)
-    Run dotnet @('build', 'kikitan-translator.sln', '--nologo', '-m:1', '-p:UseSharedCompilation=false')
-    Run dotnet @('run', '--project', 'tests/DesktopTranslator.Tests', '--no-build', '--no-restore')
+    Run dotnet @('build', 'MorChranslator.sln', '--nologo', '-m:1', '-p:UseSharedCompilation=false')
+    Run dotnet @('run', '--project', 'tests/MorChranslator.Tests', '--no-build', '--no-restore')
     New-Item -ItemType Directory -Path $staging -Force | Out-Null
-    Run dotnet @('publish', 'KikitanTranslator.Photino/KikitanTranslator.Photino.csproj', '-c', 'Release', '-r', 'win-x64',
+    Run dotnet @('publish', 'MorChranslator.Photino/MorChranslator.Photino.csproj', '-c', 'Release', '-r', 'win-x64',
         '--self-contained', 'true', '-o', $staging, '-m:1', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true',
         '-p:DebugType=None', '-p:SkipVelopack=true', '-p:SkipNpmBuild=true', '-p:UseSharedCompilation=false', "-p:Version=$Version")
-    foreach ($required in @('DesktopTranslator.exe', 'KikitanTranslator.Subtitles.exe', 'wwwroot/index.html', 'wwwroot/silero_vad.onnx')) {
+    foreach ($required in @('MorChranslator.exe', 'MorChranslator.Subtitles.exe', 'wwwroot/index.html', 'wwwroot/silero_vad.onnx')) {
         if (!(Test-Path -LiteralPath (Join-Path $staging $required))) { throw "Missing release component: $required" }
     }
     # WinExe tests must be explicitly awaited; do not let a hung UI test block a release indefinitely.
     $testOutput = Join-Path $staging 'subtitle-test.stdout'
     $testError = Join-Path $staging 'subtitle-test.stderr'
-    $testProcess = Start-Process -FilePath (Join-Path $staging 'KikitanTranslator.Subtitles.exe') -ArgumentList '--self-test' -WindowStyle Hidden -PassThru -RedirectStandardOutput $testOutput -RedirectStandardError $testError
+    $testProcess = Start-Process -FilePath (Join-Path $staging 'MorChranslator.Subtitles.exe') -ArgumentList '--self-test' -WindowStyle Hidden -PassThru -RedirectStandardOutput $testOutput -RedirectStandardError $testError
     try {
         if (!$testProcess.WaitForExit(30000)) {
             $testProcess.Kill()
@@ -58,9 +60,11 @@ try {
     }
     Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE.md') -Destination $staging
     Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination $staging
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'scripts/Start-LatencyDiagnostics.ps1') -Destination $staging
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/DIAGNOSTIC_TESTING_ZH.md') -Destination $staging
     $packageDocs = Join-Path $staging 'docs'
     New-Item -ItemType Directory -Path $packageDocs -Force | Out-Null
-    foreach ($document in @('ENGINEERING_AUDIT.md', 'MANUAL_TESTS.md', 'UI_DESIGN.md', 'PERFORMANCE.md')) {
+    foreach ($document in @('ENGINEERING_AUDIT.md', 'MANUAL_TESTS.md', 'UI_DESIGN.md', 'PERFORMANCE.md', 'RENAMING.md', 'LATENCY_DIAGNOSTICS.md', 'SENTENCE_LATENCY.md')) {
         Copy-Item -LiteralPath (Join-Path $repoRoot "docs/$document") -Destination $packageDocs
     }
     & (Join-Path $PSScriptRoot 'verify-release.ps1') -Path $staging
@@ -71,5 +75,9 @@ try {
     }
     $hashes | Set-Content -LiteralPath (Join-Path $staging 'SHA256SUMS.txt') -Encoding utf8
     Move-Item -LiteralPath $staging -Destination $destination
+    [IO.Compression.ZipFile]::CreateFromDirectory($destination, $zipPath)
+    $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$zipHash  $([IO.Path]::GetFileName($zipPath))" | Set-Content -LiteralPath "$zipPath.sha256" -Encoding utf8
     Write-Host "Release ready: $destination"
+    Write-Host "Portable ZIP: $zipPath"
 } finally { Pop-Location }

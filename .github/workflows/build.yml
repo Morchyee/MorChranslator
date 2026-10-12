@@ -1,4 +1,4 @@
-name: Build Kikitan Translator
+name: Build MorChranslator
 
 on:
   workflow_dispatch:
@@ -43,7 +43,7 @@ jobs:
             pipewire
 
       - name: Install npm dependencies
-        working-directory: KikitanTranslator.Photino/UserInterface
+        working-directory: MorChranslator.Photino/UserInterface
         run: npm i
 
       - name: Install velopack (vpk)
@@ -57,26 +57,26 @@ jobs:
         env:
           DOTNET_CLI_TELEMETRY_OPTOUT: 1
         run: |
-          dotnet build -c Release -r linux-x64 KikitanTranslator.Photino/
+          dotnet build -c Release -r linux-x64 MorChranslator.Photino/
 
       - name: Copy AppImage
         run: |
-          RELEASE_DIR="KikitanTranslator.Photino/bin/Release/net9.0/linux-x64/Release"
-          chmod +x "$RELEASE_DIR/com.github.yusufozmen01.kikitan-translator.AppImage"
-          cp "$RELEASE_DIR/com.github.yusufozmen01.kikitan-translator.AppImage" kikitan-translator.AppImage
+          RELEASE_DIR="MorChranslator.Photino/bin/Release/net9.0/linux-x64/Release"
+          chmod +x "$RELEASE_DIR/com.github.yusufozmen01.MorChranslator.AppImage"
+          cp "$RELEASE_DIR/com.github.yusufozmen01.MorChranslator.AppImage" MorChranslator.AppImage
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kikitan-translator-linux-AppImage
-          path: kikitan-translator.AppImage
+          name: MorChranslator-linux-AppImage
+          path: MorChranslator.AppImage
           if-no-files-found: error
 
       - name: Upload Linux release files (for combined zip)
         uses: actions/upload-artifact@v4
         with:
           name: linux-release-files
-          path: KikitanTranslator.Photino/bin/Release/net9.0/linux-x64/Release/
+          path: MorChranslator.Photino/bin/Release/net9.0/linux-x64/Release/
           if-no-files-found: error
 
   build-windows:
@@ -100,7 +100,7 @@ jobs:
           node-version: 'lts/*'
 
       - name: Install npm dependencies
-        working-directory: KikitanTranslator.Photino/UserInterface
+        working-directory: MorChranslator.Photino/UserInterface
         run: npm i
 
       - name: Install velopack (vpk)
@@ -114,20 +114,20 @@ jobs:
         env:
           DOTNET_CLI_TELEMETRY_OPTOUT: 1
         run: |
-          dotnet build -c Release -r win-x64 KikitanTranslator.Photino/
+          dotnet build -c Release -r win-x64 MorChranslator.Photino/
 
       - name: Upload Setup.exe
         uses: actions/upload-artifact@v4
         with:
-          name: kikitan-translator-windows-setup
-          path: KikitanTranslator.Photino\bin\Release\net9.0\win-x64\Release\com.github.yusufozmen01.kikitan-translator-win-Setup.exe
+          name: MorChranslator-windows-setup
+          path: MorChranslator.Photino\bin\Release\net9.0\win-x64\Release\com.github.yusufozmen01.MorChranslator-win-Setup.exe
           if-no-files-found: error
 
       - name: Upload Windows release files (for combined zip)
         uses: actions/upload-artifact@v4
         with:
           name: windows-release-files
-          path: KikitanTranslator.Photino\bin\Release\net9.0\win-x64\Release\
+          path: MorChranslator.Photino\bin\Release\net9.0\win-x64\Release\
           if-no-files-found: error
 
   package:
@@ -149,11 +149,11 @@ jobs:
           path: combined/windows
 
       - name: Zip combined release
-        run: zip -r kikitan-translator-all-platforms.zip combined/
+        run: zip -r MorChranslator-all-platforms.zip combined/
 
       - name: Upload combined release zip
         uses: actions/upload-artifact@v4
         with:
-          name: kikitan-translator-all-platforms
-          path: kikitan-translator-all-platforms.zip
+          name: MorChranslator-all-platforms
+          path: MorChranslator-all-platforms.zip
           if-no-files-found: error

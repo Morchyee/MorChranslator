@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=MorChranslator
+Comment=Realtime VRChat Translator
+Exec=MorChranslator.Photino
+StartupWMClass=MorChranslator.Photino
+Icon=com.github.yusufozmen01.MorChranslator
+Type=Application
+Categories=Utility;AudioVideo;

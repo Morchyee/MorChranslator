@@ -1,0 +1,14 @@
+﻿namespace MorChranslator.Capture;
+
+public delegate void OnData(float[] samples, bool speech);
+
+public interface ICapture
+{
+    public event OnData OnDataReceived;
+    public uint GetSampleRate();
+    
+    public bool Start();
+    public void Stop();
+    public void Pause();
+    public void Resume();
+}

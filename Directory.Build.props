@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <Product>MorChranslator</Product>
+    <Title>MorChranslator</Title>
+    <Description>Windows real-time speech recognition and bilingual subtitle translation</Description>
+  </PropertyGroup>
+</Project>
