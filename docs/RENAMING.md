@@ -16,6 +16,7 @@
 | PROGRESS.md 既有章节、modernization-baseline-files.txt、CLEANUP_AUDIT.md、历史版本路径 | 历史证据和原有用户审计，保持事实可追溯，不篡改历史 |
 | 本地根目录 `F:\Program\kikitan-translator` | 保持工作区、外部编辑器和自动化有效；所有相对开发/构建路径已更新 |
 | Git 历史、旧发布包、隔离备份和生成缓存 | 不改写历史、不破坏回滚；不进入新包 |
+| 提交历史仍保留的旧 UI 教程截图 | 工作区原有删除状态保持不变；Vite 仅打包显式引用的资源，旧截图不进入新发行包 |
 
 兼容常量集中在 `MorChranslator.Resources/ProductIdentity.cs`。管道及启动器保留同样的字面量；回归测试刻意验证原始值。配置字段、DPAPI `dpapi:v1:` 封装及加密参数未变；原字幕历史为内存会话状态，不新增磁盘迁移。
 

@@ -1,7 +1,7 @@
 import * as React from 'react';
 
 import DesktopSettings from "./pages/DesktopSettings";
-import TranslationPipeline from "./pages/TranslationPipeline"
+import MorChranslator from "./pages/MorChranslator"
 
 import {
     AppBar,
@@ -233,7 +233,7 @@ function App() {
                     <AppBar position="static">
                         <Toolbar>
                             <Typography className="flex" variant="h6" component="div" sx={{flexGrow: 1}}>
-                                TranslationPipeline Translator
+                                MorChranslator
                                 <p className="text-sm italic ml-2 mt-2">
                                     <a href='' onClick={(e) => {
                                         e.preventDefault()
@@ -288,7 +288,7 @@ function App() {
                         </Toolbar>
                     </AppBar>
                     <div className='flex flex-1 items-center align-middle flex-col mt-8'>
-                        {loaded && appState.config.quickstart_viewed && <TranslationPipeline state={appState}/>}
+                        {loaded && appState.config.quickstart_viewed && <MorChranslator state={appState}/>}
                     </div>
                 </div>
             </div>}

@@ -6,7 +6,7 @@ test("HTML, settings and localized presentation use exact MorChranslator brand",
     const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
     const html = read("../index.html");
     assert.match(html, /<title>MorChranslator<\/title>/);
-    assert.match(html, /href="\/MorChranslator.svg"/);
+    assert.match(html, /href="\/public\/MorChranslator.svg"/);
     assert.ok(existsSync(new URL("../public/MorChranslator.svg", import.meta.url)));
     const settings = read("../src/pages/DesktopSettings.tsx");
     assert.match(settings, /<span>MorChranslator<\/span>/);

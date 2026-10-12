@@ -6,10 +6,10 @@ export const localization = {
         kr: "OSC를 활성화하세요!",
     },
     how_to_setup_and_use_MorChranslator: {
-        en: "How to setup and use TranslationPipeline",
+        en: "How to setup and use MorChranslator",
         jp: "MorChranslatorの設定・使い方",
         cn: "如何设置和使用MorChranslator",
-        kr: "TranslationPipeline 설정 및 사용 방법",
+        kr: "MorChranslator 설정 및 사용 방법",
     },
     api_key: {
         en: "API Key",
@@ -30,7 +30,7 @@ export const localization = {
         kr: "오른쪽 상단의 테마 버튼을 눌러 앱 테마를 변경할 수 있습니다 (클릭하면 아이콘이 변경됩니다!)"
     },
     not_appimage_warning: {
-        en: "TranslationPipeline is installed via your distribution's package manager. Please update through your package manager. You can install the AppImage version to receive updates without your distribution's package manager",
+        en: "MorChranslator is installed via your distribution's package manager. Please update through your package manager. You can install the AppImage version to receive updates without your distribution's package manager",
         jp: "MorChranslatorは、お使いのディストリビューションのパッケージマネージャーからインストールされています。アップデートもパッケージマネージャーから行ってください。AppImage版をインストールすると、ディストリビューションのパッケージマネージャーを介さずにアップデートを受け取れます。",
         cn: "MorChranslator是通过您的发行版的包管理器安装的。请通过包管理器进行更新。您可以安装AppImage版本以在不使用发行版的包管理器的情况下接收更新",
         kr: "MorChranslator은 배포판의 패키지 관리자를 통해 설치됩니다. 패키지 관리자를 통해 업데이트하세요. AppImage 버전을 설치하면 배포판의 패키지 관리자를 사용하지 않고도 업데이트를 받을 수 있습니다",
@@ -54,7 +54,7 @@ export const localization = {
         kr: "Windows 기본 마이크 설정을 확인하세요!",
     },
     windows_mic_details: {
-        en: "Make sure to check your Windows microphone settings. Your VR headset microphone (or your actual microphone) must be selected. Don't forget to restart TranslationPipeline after changing the default microphone!",
+        en: "Make sure to check your Windows microphone settings. Your VR headset microphone (or your actual microphone) must be selected. Don't forget to restart MorChranslator after changing the default microphone!",
         jp: "Windowsのマイク設定を確認し、VRヘッドセットのマイク（または使用するマイク）が既定のマイクとして選択されていることを確認してください。既定のマイクを変更した場合は、MorChranslatorを再起動してください！",
         cn: "请确认Windows麦克风设置。请选择VR设备的麦克风（或实际正在使用的麦克风）。更改默认麦克风后，请务必重启MorChranslator！",
         kr: "Windows 마이크 설정을 확인하세요. VR 헤드셋 마이크(또는 실제 마이크)가 선택되어 있어야 합니다. 기본 마이크를 변경한 후에는 MorChranslator을 재시작하는 것을 잊지 마세요!",
@@ -138,9 +138,9 @@ export const localization = {
         kr: "텍스트",
     },
     muted_in_game: {
-        en: "You are muted in game! If you want TranslationPipeline to work, either disable the setting in settings, or unmute yourself!",
+        en: "You are muted in game! If you want MorChranslator to work, either disable the setting in settings, or unmute yourself!",
         jp: "ゲーム内でミュート中です。MorChranslatorを使用するには、設定の「ゲーム内でミュート中はMorChranslatorを無効にする」をオフにするか、VRChatでミュートを解除してください！",
-        cn: "你在游戏中被静音了！如果你想让 TranslationPipeline 正常工作，请在设置中禁用该选项，或者取消自己的静音！",
+        cn: "你在游戏中被静音了！如果你想让 MorChranslator 正常工作，请在设置中禁用该选项，或者取消自己的静音！",
         kr: "게임 내에서 음소거되었습니다! MorChranslator이 작동하게 하려면 설정에서 해당 옵션을 비활성화하거나 스스로 음소거를 해제하세요!",
     },
     mode_selection: {
@@ -162,13 +162,13 @@ export const localization = {
         kr: "데스크톱 번역",
     },
     settings_details: {
-        en: "You can access the settings to configure TranslationPipeline by pressing the settings button on top right!",
+        en: "You can access the settings to configure MorChranslator by pressing the settings button on top right!",
         jp: "右上の設定ボタンからMorChranslatorの設定を変更できます！",
         cn: "通过点击右上角的设置按钮，您可以访问MorChranslator的设置！",
-        kr: "오른쪽 상단의 설정 버튼을 눌러 TranslationPipeline 설정에 접근할 수 있습니다!",
+        kr: "오른쪽 상단의 설정 버튼을 눌러 MorChranslator 설정에 접근할 수 있습니다!",
     },
     disable_MorChranslator_when_muted_tooltip: {
-        en: "Enabling this will make it so that when you're muted in the game, TranslationPipeline will not recognize your voice",
+        en: "Enabling this will make it so that when you're muted in the game, MorChranslator will not recognize your voice",
         jp: "有効にすると、ゲーム内でミュート中はMorChranslatorが音声を認識しません。",
         cn: "启用此选项后，当您在游戏中被静音时，MorChranslator将不会识别您的声音",
         kr: "이 기능을 활성화하면 게임에서 음소거 상태일 때 MorChranslator이 음성을 인식하지 않습니다",
@@ -198,13 +198,13 @@ export const localization = {
         kr: "여기서 데스크톱 번역을 활성화할 수 있습니다. 다른 사람이 말할 때 앱이 내용을 번역하여 표시합니다. VR을 사용하지 않는 경우 메인 모니터 하단에 박스로 표시됩니다. VR을 사용하는 경우 시야 중앙 아래에 표시됩니다(현재 Windows만 지원)",
     },
     thank_you: {
-        en: "Thank you for using TranslationPipeline!",
+        en: "Thank you for using MorChranslator!",
         jp: "MorChranslatorをご利用いただき、ありがとうございます！",
         cn: "感谢使用MorChranslator！",
         kr: "MorChranslator을 사용해 주셔서 감사합니다!",
     },
     thank_you_details: {
-        en: "TranslationPipeline will always be free and open source! If you want to support the project, you can do so from Buy Me a Coffee or through Booth.pm!",
+        en: "MorChranslator will always be free and open source! If you want to support the project, you can do so from Buy Me a Coffee or through Booth.pm!",
         jp: "MorChranslatorは今後も無料のオープンソースソフトウェアとして提供されます。プロジェクトを支援していただける場合は、Buy Me a CoffeeまたはBooth.pmからご支援いただけます！",
         cn: "MorChranslator将永远免费且开源！如果您想支持该项目，可以通过Buy Me a Coffee或Booth.pm进行支持！",
         kr: "MorChranslator은 항상 무료이며 오픈 소스입니다! 프로젝트를 지원하고 싶으시다면 Buy Me a Coffee 또는 Booth.pm을 통해 후원하실 수 있습니다!",
@@ -324,10 +324,10 @@ export const localization = {
         kr: "OSC 포트",
     },
     disable_MorChranslator_when_muted: {
-        en: "Disable TranslationPipeline when muted in game",
+        en: "Disable MorChranslator when muted in game",
         jp: "ゲーム内でミュート中はMorChranslatorを無効にする",
         cn: "游戏中被静音时禁用MorChranslator",
-        kr: "게임 내 음소거 시 TranslationPipeline 비활성화",
+        kr: "게임 내 음소거 시 MorChranslator 비활성화",
     },
     watch_tutorial: {
         en: "Make sure to watch the tutorial before proceeding!",
@@ -374,7 +374,7 @@ export const localization = {
         kr: "Google 서버에 접근할 수 없습니다. 방화벽 설정이 요청을 차단하고 있지 않은지 확인하세요. Google이 차단된 국가(예: 중국)에 계신 경우 VPN이 정상 작동 중인지 확인하세요!",
     },
     donation_text: {
-        en: "TranslationPipeline is free and will always stay free. However, any support is hugely welcome! Since I am still a student, anything I receive helps me live better! So, if you enjoy using TranslationPipeline, considering donating!",
+        en: "MorChranslator is free and will always stay free. However, any support is hugely welcome! Since I am still a student, anything I receive helps me live better! So, if you enjoy using MorChranslator, considering donating!",
         jp: "MorChranslatorは無料で、今後も無料で提供されます。とはいえ、ご支援いただけると大変助かります！私はまだ学生のため、いただいたご支援は生活の大きな助けになります。MorChranslatorを気に入っていただけたら、寄付をご検討ください！",
         cn: "MorChranslator是免费的，将来也会一直免费。不过，任何形式的支持都非常欢迎！由于我还是一名学生，收到的每一份支持都能让我生活得更好。如果您喜欢使用MorChranslator，欢迎考虑捐赠！",
         kr: "MorChranslator은 무료이며 앞으로도 항상 무료입니다. 그래도 어떤 형태의 지원이든 큰 힘이 됩니다! 아직 학생이기 때문에 받는 모든 것이 생활에 도움이 됩니다. MorChranslator을 즐겁게 사용하고 계신다면 후원을 고려해 주세요!",
@@ -548,10 +548,10 @@ export const localization = {
         kr: "WebSpeech는 데스크톱 번역에 사용할 수 없습니다! 사용하려면 음성 인식 서비스를 변경해 주세요!",
     },
     translation_disabled_muted: {
-        en: "TranslationPipeline is disabled because you are muted in game. If what you say does not appear in the game, consider disabing \"Disable TranslationPipeline while muted\" setting in settings!",
+        en: "MorChranslator is disabled because you are muted in game. If what you say does not appear in the game, consider disabing \"Disable MorChranslator while muted\" setting in settings!",
         jp: "ゲーム内でミュート中のため、MorChranslatorは無効になっています。発言内容がゲーム内に表示されない場合は、設定の「ゲーム内でミュート中はMorChranslatorを無効にする」をオフにしてください！",
         cn: "由于您在游戏中被静音，MorChranslator已被禁用。如果您说的话没有显示在游戏中，请考虑在设置中禁用“静音时禁用MorChranslator”选项！",
-        kr: "게임 내에서 음소거 상태이기 때문에 MorChranslator이 비활성화되어 있습니다. 말한 내용이 게임에 표시되지 않는다면, 설정에서 \"음소거 중 TranslationPipeline 비활성화\" 옵션을 꺼보세요!"
+        kr: "게임 내에서 음소거 상태이기 때문에 MorChranslator이 비활성화되어 있습니다. 말한 내용이 게임에 표시되지 않는다면, 설정에서 \"음소거 중 MorChranslator 비활성화\" 옵션을 꺼보세요!"
     },
     translation_disabled: {
         en: "Translation is disabled. You can enable it by switching from Speech-to-Text mode to Translation mode.",

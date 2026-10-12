@@ -43,7 +43,7 @@ import {
     setConfig
 } from "../util/photino.ts";
 
-export default function TranslationPipeline({ state }: { state: app_state }) {
+export default function MorChranslator({ state }: { state: app_state }) {
     const [messageHistory, setMessageHistory] = React.useState<{ source: string, translation: string, timestamp: number }[]>([])
     
     const [detecting, setDetecting] = React.useState(false);
