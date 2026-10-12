@@ -16,6 +16,7 @@ async Task Wait(Func<bool> condition)
     while (!condition()) await Task.Delay(10, timeout.Token);
 }
 LatencyTests.Register(Test, Check);
+DiagnosticsTests.Register(Test, Check);
 Test("Desktop catalogs are complete and native English fallback works", () =>
 {
     var assembly = typeof(KikitanTranslator.Resources.DesktopText).Assembly;

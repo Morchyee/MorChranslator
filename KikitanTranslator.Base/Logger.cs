@@ -22,6 +22,7 @@ public static class Logger
             .CreateLogger();
 
         Log.Information("Logger has been initialized!");
+        Diagnostics.LatencyDiagnostics.Initialize();
         
         try
         {

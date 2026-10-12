@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using KikitanTranslator.Base.Diagnostics;
 using KikitanTranslator.Base.Outputs;
 using KikitanTranslator.Base.Translators;
 using KikitanTranslator.Recognizers;
@@ -31,24 +32,33 @@ public sealed class Kikitan : IDisposable
     private bool _started;
     private Guid _utteranceId = Guid.NewGuid();
     private DateTime _lastFailure;
+    private readonly LatencyDiagnostics _diagnostics;
+    private LatencyTrace _recognitionTrace, _activePreviewTrace;
+    private long _firstRecognitionAt, _lastPartialAt;
+    private int _partialCount;
+    private bool _hasRecognition;
+    private volatile bool _previewCancelRequested;
 
     private sealed record PendingTranslation(Guid Id, string Text, string Source, string Target, bool TranscriptionOnly,
-        long EnqueuedAt, bool Preview = false, string? CachedTranslation = null);
+        long EnqueuedAt, bool Preview = false, string? CachedTranslation = null,
+        LatencyTrace Trace = default, long DiagnosticQueuedAt = 0);
     public event OnRecognizerStatus? OnRecognizerStatusChanged;
     public event Action<Guid, string, string, bool, bool>? OnSubtitle;
 
-    public Kikitan(IRecognizer recognizer, ITranslator translator, IErrorHandler errorHandler, bool loopback)
+    public Kikitan(IRecognizer recognizer, ITranslator translator, IErrorHandler errorHandler, bool loopback,
+        LatencyDiagnostics? diagnostics = null)
     {
         _recognizer = recognizer;
         _translator = translator;
         _errorHandler = errorHandler;
         _isLoopback = loopback;
+        _diagnostics = diagnostics ?? LatencyDiagnostics.Current;
         // Desktop captions favor recent speech during provider stalls. Legacy chat output retains FIFO behavior.
         _translations = Channel.CreateBounded<PendingTranslation>(new BoundedChannelOptions(loopback ? 3 : 32)
         {
             FullMode = loopback ? BoundedChannelFullMode.DropOldest : BoundedChannelFullMode.Wait,
             SingleReader = true
-        });
+        }, dropped => dropped.Trace.Record(LatencyStage.TranslationQueueDropped));
         recognizer.OnRecognitionReceived += OnRecognition;
         recognizer.OnRecognizerStatusChanged += OnRecognizerStatus;
     }
@@ -65,33 +75,64 @@ public sealed class Kikitan : IDisposable
     }
     private void OnRecognition(string text, bool final)
     {
+        var receivedAt = _diagnostics.Now;
         lock (_recognitionLock)
         {
             if (!_running || string.IsNullOrWhiteSpace(text)) return;
             var id = _utteranceId;
+            if (_diagnostics.Enabled)
+            {
+                if (!_hasRecognition) { _firstRecognitionAt = receivedAt; _hasRecognition = true; }
+                _recognitionTrace = _diagnostics.Recognition(id, receivedAt, _firstRecognitionAt);
+                if (final)
+                {
+                    _recognitionTrace.Record(LatencyStage.RecognitionFinal, _firstRecognitionAt);
+                    _recognitionTrace.Record(LatencyStage.RecognitionPartialCount, value: _partialCount);
+                }
+                else
+                {
+                    _recognitionTrace.Record(_partialCount == 0 ? LatencyStage.RecognitionFirstPartial : LatencyStage.RecognitionPartial);
+                    if (_partialCount > 0 && AppConfig.ConfigObject.Recognizer != 2 &&
+                        !text.AsSpan().Trim().SequenceEqual(_currentSource.AsSpan()))
+                        _recognitionTrace.Record(LatencyStage.RecognitionRevision);
+                    if (_partialCount > 0) _recognitionTrace.Record(LatencyStage.RecognitionPartialGap, _lastPartialAt);
+                    _lastPartialAt = receivedAt; _partialCount++;
+                }
+            }
             if (AppConfig.ConfigObject.Recognizer == 2)
             {
                 var parts = text.Split('|', 2);
-                Publish(id, parts[0], parts.Length > 1 ? parts[1] : "", final);
+                if (parts.Length > 1) _recognitionTrace.Record(LatencyStage.CombinedTranslationEmitted);
+                Publish(id, parts[0], parts.Length > 1 ? parts[1] : "", final, trace: _recognitionTrace);
             }
             else
             {
                 _currentSource = text.Trim();
                 if (_activePreview != null && (final || !StreamingTranslationPreview.IsCompatible(_currentSource, _activePreviewText)))
+                {
+                    _previewCancelRequested = true;
+                    _activePreviewTrace.Record(final ? LatencyStage.PreviewCancelForFinal : LatencyStage.PreviewCancelForRevision);
                     _activePreview.Cancel();
+                }
                 if (_translatedPrefix.Length > 0 && (!StreamingTranslationPreview.IsCompatible(_currentSource, _translatedPrefix) ||
                     _completedPreview?.Source != AppConfig.ConfigObject.SourceLanguage ||
                     _completedPreview?.Target != AppConfig.ConfigObject.TargetLanguage || AppConfig.ConfigObject.SpeechToTextOnly))
                     _translatedPrefix = _previewTranslation = "";
                 // Commit source immediately; translation later updates exactly this ID.
-                OnSubtitle?.Invoke(id, text, _previewTranslation, final, false);
+                EmitSubtitle(id, text, _previewTranslation, final, false, _recognitionTrace);
                 foreach (var output in _outputs.Where(o => !o.IsDelayed())) SendOutput(output, text, "", false);
                 if (final)
                 {
+                    _pendingPreview?.Trace.Record(LatencyStage.PreviewDiscardedForFinal);
                     _pendingPreview = null;
                     var cached = _currentSource == _translatedPrefix ? _previewTranslation : null;
-                    if (!_translations.Writer.TryWrite(CreateTranslation(id, text, false, cached)))
+                    var item = CreateTranslation(id, text, false, cached);
+                    item.Trace.Record(LatencyStage.FinalQueued);
+                    if (!_translations.Writer.TryWrite(item))
+                    {
+                        item.Trace.Record(LatencyStage.TranslationQueueDropped);
                         ReportFailure("Translation queue is full. Original subtitles are retained.");
+                    }
                     else SignalTranslation();
                 }
                 else if (_isLoopback && !AppConfig.ConfigObject.SpeechToTextOnly)
@@ -100,7 +141,10 @@ public sealed class Kikitan : IDisposable
                     if (preview != null)
                     {
                         // One replaceable slot, separate from the final-result queue.
+                        _pendingPreview?.Trace.Record(LatencyStage.PreviewCoalesced);
                         _pendingPreview = CreateTranslation(id, preview, true);
+                        _pendingPreview.Trace.Record(LatencyStage.PreviewCandidate);
+                        _pendingPreview.Trace.Record(LatencyStage.PreviewScheduled);
                         SignalTranslation();
                     }
                 }
@@ -111,13 +155,15 @@ public sealed class Kikitan : IDisposable
                 _previewPolicy.Reset();
                 _completedPreview = null;
                 _translatedPrefix = _previewTranslation = _currentSource = "";
+                _hasRecognition = false; _partialCount = 0;
             }
         }
     }
 
-    private static PendingTranslation CreateTranslation(Guid id, string text, bool preview, string? cached = null) =>
+    private PendingTranslation CreateTranslation(Guid id, string text, bool preview, string? cached = null) =>
         new(id, text, AppConfig.ConfigObject.SourceLanguage, AppConfig.ConfigObject.TargetLanguage,
-            AppConfig.ConfigObject.SpeechToTextOnly, System.Diagnostics.Stopwatch.GetTimestamp(), preview, cached);
+            AppConfig.ConfigObject.SpeechToTextOnly, System.Diagnostics.Stopwatch.GetTimestamp(), preview, cached,
+            _diagnostics.Request(_recognitionTrace, preview), _diagnostics.Now);
 
     // Producers and candidate access are serialized by _recognitionLock. A single
     // wake-up suffices because the worker drains final work before the preview slot.
@@ -149,10 +195,14 @@ public sealed class Kikitan : IDisposable
                 await _translationAvailable.WaitAsync(token);
                 while (TryTakeTranslation(out var item))
                 {
-                    if (token.IsCancellationRequested) break;
+                    item.Trace.Record(LatencyStage.TranslationQueueWait, item.DiagnosticQueuedAt);
+                    if (token.IsCancellationRequested) { item.Trace.Record(LatencyStage.TranslationCancelled); break; }
                     // Never spend another provider request on desktop speech that is already stale.
                     if (_isLoopback && System.Diagnostics.Stopwatch.GetElapsedTime(item.EnqueuedAt) > TimeSpan.FromSeconds(10))
+                    {
+                        item.Trace.Record(LatencyStage.TranslationExpired, item.DiagnosticQueuedAt);
                         continue;
+                    }
                     await TranslateOneAsync(item, token);
                 }
             }
@@ -164,50 +214,68 @@ public sealed class Kikitan : IDisposable
     {
         string translated = "";
         CancellationTokenSource? previewBudget = null;
+        var startedAt = item.Trace.Now;
+        using var diagnosticScope = _diagnostics.Enter(item.Trace);
         try
         {
             if (item.Preview)
             {
                 lock (_recognitionLock)
                 {
-                    if (!IsCurrentPreview(item)) return;
+                    if (!IsCurrentPreview(item)) { item.Trace.Record(LatencyStage.PreviewStale); return; }
                     previewBudget = CancellationTokenSource.CreateLinkedTokenSource(token);
                     previewBudget.CancelAfter(TimeSpan.FromSeconds(2));
                     _activePreview = previewBudget;
                     _activePreviewText = item.Text;
+                    _activePreviewTrace = item.Trace; _previewCancelRequested = false;
                 }
             }
             var requestToken = previewBudget?.Token ?? token;
+            item.Trace.Record(item.Preview ? LatencyStage.PreviewStarted : LatencyStage.FinalStarted);
+            if (item.TranscriptionOnly) item.Trace.Record(LatencyStage.TranslationBypassed);
+            else if (item.CachedTranslation != null) item.Trace.Record(LatencyStage.TranslationCacheHit);
             if (!item.TranscriptionOnly)
                 translated = item.CachedTranslation ?? await _translator.TranslateAsync(item.Text, item.Source, item.Target, requestToken) ?? "";
             if (!item.TranscriptionOnly && string.IsNullOrWhiteSpace(translated))
+            {
+                item.Trace.Record(item.Preview ? LatencyStage.PreviewFailed : LatencyStage.FinalFailed, startedAt);
                 ReportFailure("Translation provider returned no text. Original subtitles are retained.");
+            }
+            else item.Trace.Record(item.Preview ? LatencyStage.PreviewCompleted : LatencyStage.FinalCompleted, startedAt);
             lock (_recognitionLock)
             {
-                if (!_running) return;
+                if (!_running) { item.Trace.Record(LatencyStage.TranslationCancelled); return; }
                 if (item.Preview)
                 {
-                    if (previewBudget!.IsCancellationRequested || !IsCurrentPreview(item) || string.IsNullOrWhiteSpace(translated)) return;
+                    if (previewBudget!.IsCancellationRequested || !IsCurrentPreview(item) || string.IsNullOrWhiteSpace(translated))
+                    {
+                        item.Trace.Record(LatencyStage.PreviewStale);
+                        return;
+                    }
                     _translatedPrefix = item.Text;
                     _previewTranslation = translated;
                     _completedPreview = item;
                     // Keep the newest original text; a preview may cover only
                     // its stable leading sentences. Final STT remains authoritative.
-                    OnSubtitle?.Invoke(item.Id, _currentSource, translated, false, true);
+                    EmitSubtitle(item.Id, _currentSource, translated, false, true, item.Trace);
                 }
-                else Publish(item.Id, item.Text, translated, true, true);
+                else Publish(item.Id, item.Text, translated, true, true, item.Trace);
             }
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-        catch (OperationCanceledException) when (previewBudget?.IsCancellationRequested == true) { }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        { item.Trace.Record(LatencyStage.TranslationCancelled, startedAt); throw; }
+        catch (OperationCanceledException) when (previewBudget?.IsCancellationRequested == true)
+        { item.Trace.Record(_previewCancelRequested ? LatencyStage.PreviewCancelled : LatencyStage.PreviewTimeout, startedAt); }
         catch (Exception e)
         {
+            item.Trace.Record(e is OperationCanceledException ? LatencyStage.TranslationTimeout :
+                item.Preview ? LatencyStage.PreviewFailed : LatencyStage.FinalFailed, startedAt);
             // Do not log provider exceptions: some include request URLs or credentials.
             Log.Warning("[TRANSLATION] Failed with {ErrorType}", e.GetType().Name);
             ReportFailure(e is InvalidOperationException ? e.Message :
                 "Translation failed or timed out. Check provider credentials, languages and network. Original subtitles are retained.");
             if (!item.Preview)
-                lock (_recognitionLock) { if (_running) Publish(item.Id, item.Text, "", true, true); }
+                lock (_recognitionLock) { if (_running) Publish(item.Id, item.Text, "", true, true, item.Trace); }
         }
         finally
         {
@@ -218,9 +286,21 @@ public sealed class Kikitan : IDisposable
             }
         }
     }
-    private void Publish(Guid id, string text, string translated, bool final, bool translationUpdate = false)
+    private void EmitSubtitle(Guid id, string text, string translated, bool final, bool translationUpdate, LatencyTrace trace)
     {
+        trace = trace with { EmissionAt = trace.Now };
+        using var scope = _diagnostics.Enter(trace);
+        trace.Record(translationUpdate ? LatencyStage.TranslationEmitted : LatencyStage.OriginalEmitted);
+        if (translationUpdate && !string.IsNullOrWhiteSpace(translated))
+        {
+            trace.Record(LatencyStage.RecognitionToTranslation, trace.RecognitionAt);
+            trace.Record(LatencyStage.FirstRecognitionToTranslation, trace.FirstRecognitionAt);
+        }
         OnSubtitle?.Invoke(id, text, translated, final, translationUpdate);
+    }
+    private void Publish(Guid id, string text, string translated, bool final, bool translationUpdate = false, LatencyTrace trace = default)
+    {
+        EmitSubtitle(id, text, translated, final, translationUpdate, trace);
         foreach (var output in _outputs.Where(o => !o.IsDelayed())) SendOutput(output, text, translated, final);
         if (final && _outputs.Any(o => o.IsDelayed()) && !_delayed.Writer.TryWrite((text, translated)))
             ReportFailure("Delayed output queue is full.");

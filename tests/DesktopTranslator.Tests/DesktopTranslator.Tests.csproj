@@ -7,5 +7,6 @@
     <ProjectReference Include="../../KikitanTranslator.Base/KikitanTranslator.Base.csproj" />
     <Compile Include="../../KikitanTranslator.Subtitles/SubtitleHistory.cs" Link="SubtitleHistory.cs" />
     <Compile Include="../../KikitanTranslator.Photino/DesktopSubtitleResult.cs" Link="WireResult.cs" />
+    <Compile Include="../../KikitanTranslator.Photino/SubtitleWriter.cs" Link="SubtitleWriter.cs" />
   </ItemGroup>
 </Project>
