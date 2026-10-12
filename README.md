@@ -4,7 +4,7 @@ A standalone Windows alpha application for real-time bilingual subtitles from sy
 
 ## Quick start
 
-1. Extract the complete `MorChranslator-<version>-win-x64` folder to a writable location.
+1. Download the ZIP and matching SHA256 file from [GitHub Releases](https://github.com/Morchyee/MorChranslator/releases). Verify the ZIP checksum, then extract it to a writable location. The ZIP contains one `MorChranslator/` folder; keep all its files together.
 2. Double-click **MorChranslator.exe**. A subtitle window and tray icon appear. No Node.js, .NET SDK or terminal is needed for daily use.
 3. Use the tray menu → **Open settings**. Translation contains language direction and provider setup; Speech recognition configures speech service access. Paste a key and choose **Save key**; a confirmation appears after storage succeeds.
 4. Use **Start translation**, **Stop translation**, **Show/Hide subtitles**, **Subtitle appearance…** and **Exit** from the tray menu. Closing the subtitle window hides it; Exit stops the app.
@@ -65,7 +65,7 @@ The desktop settings use five focused sections and light/dark themes. See [UI de
 ./scripts/build-release.ps1 -Version 2.0.2-alpha.1
 ```
 
-This installs locked frontend dependencies, builds the solution and frontend, runs regressions, publishes self-contained Windows x64 executables, runs subtitle rendering checks, verifies package contents and writes SHA-256 hashes. Output: `release/MorChranslator-<version>-win-x64/`. Use `-SkipInstall` only when dependencies have already been restored. Existing version folders are preserved; choose another version or move the existing folder to rebuild. Failed staging folders are retained for diagnosis. No upload, GitHub operation or release creation occurs.
+This installs locked frontend dependencies, builds the solution and frontend, runs regressions, publishes self-contained Windows x64 executables, runs subtitle rendering checks, verifies package contents and writes SHA-256 hashes. Output: `release/MorChranslator-<version>-win-x64/`, `MorChranslator-<version>-win-x64.zip` and `.zip.sha256`. The ZIP has exactly one `MorChranslator/` top-level folder, containing `MorChranslator.exe` and all bundled dependencies/resources. Use `-SkipInstall` only when dependencies have already been restored. Existing version folders are preserved; choose another version or move the existing folder to rebuild. Failed staging folders are retained for diagnosis. No upload, GitHub operation or release creation occurs.
 
 The package includes the subtitle executable, frontend assets and Silero ONNX model. It excludes application config, logs, source, debug symbols and node_modules. The verification script checks known credential patterns in text assets; this is not a guarantee against every possible arbitrary secret. Self-contained executables intentionally retain reliability over minimal size.
 

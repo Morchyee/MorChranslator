@@ -19,6 +19,7 @@ function Run([string]$Program, [string[]]$Arguments) {
 }
 Push-Location $repoRoot
 try {
+    & (Join-Path $PSScriptRoot 'test-package-portable.ps1')
     $frontend = Join-Path $repoRoot 'MorChranslator.Photino/UserInterface'
     if (!$SkipInstall) { Run npm @('ci', '--prefix', $frontend, '--no-audit', '--no-fund') }
     Run npm @('test', '--prefix', $frontend)
@@ -60,6 +61,7 @@ try {
     }
     Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE.md') -Destination $staging
     Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination $staging
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/PORTABLE_RELEASE_NOTES.md') -Destination (Join-Path $staging 'RELEASE_NOTES.md')
     Copy-Item -LiteralPath (Join-Path $repoRoot 'scripts/Start-LatencyDiagnostics.ps1') -Destination $staging
     Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/DIAGNOSTIC_TESTING_ZH.md') -Destination $staging
     $packageDocs = Join-Path $staging 'docs'
@@ -75,7 +77,7 @@ try {
     }
     $hashes | Set-Content -LiteralPath (Join-Path $staging 'SHA256SUMS.txt') -Encoding utf8
     Move-Item -LiteralPath $staging -Destination $destination
-    [IO.Compression.ZipFile]::CreateFromDirectory($destination, $zipPath)
+    & (Join-Path $PSScriptRoot 'package-portable.ps1') -SourceDirectory $destination -DestinationZip $zipPath
     $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     "$zipHash  $([IO.Path]::GetFileName($zipPath))" | Set-Content -LiteralPath "$zipPath.sha256" -Encoding utf8
     Write-Host "Release ready: $destination"

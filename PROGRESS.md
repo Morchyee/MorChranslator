@@ -9,6 +9,17 @@
 
 ## Current status
 
+### Active delivery — verified portable structure and GitHub Pre-release (2026-10-12)
+
+- User explicitly authorized publishing to `Morchyee/MorChranslator`. Origin now points to the renamed repository. Main working tree remains on `codex/MorChranslator-rename`, with all original 99 tracked changes and the cleanup audit untouched.
+- Work is isolated in branch `codex/MorChranslator-portable-release`, under `release/audit-work/MorChranslator-publish-20261012/source`. Baseline captures all 100 existing working entries and 283 previous release files; never stage those original modifications.
+- Remote main has two README-only commits (`678566f`, `6aeb17e`). Preserve both parents via a reviewed merge on the isolated branch; use current desktop documentation instead of obsolete alpha.2 instructions. No experimental branch is merged, no force push or history rewrite.
+- Packaging now uses `scripts/package-portable.ps1`: fixed `MorChranslator/` archive root, complete dependency/resource files, no overwrite, no filesystem links, atomic completion. `scripts/test-package-portable.ps1` verifies structure, Unicode/hidden/empty files, extracted hashes and invalid/overwrite inputs; build-release runs it automatically. Bilingual portable notes are bundled.
+- Personal `*.DotSettings.user` IDE state is excluded from the release source tree and ignored; local original files/history are preserved. The original IDE file was already present in the shared public ancestor; no attempt is made to rewrite existing history.
+- CLI: official portable gh 2.83.2 downloaded to ignored evidence and checked against its official checksum. It reuses the existing Git credential only in the child environment; repository permission is ADMIN. No permanent credential/environment changes. Missing read:org scope is irrelevant to this personal-repository operation.
+- Proposed version: `2.0.2-alpha.20261012.1`; no matching remote Release exists (only two older drafts). Full clean-source build, tests, extraction smoke, privacy/integrity checks and publishing remain pending. Do not claim release success until those gates pass.
+- Important limits: real audio/cloud behavior and true audio-onset-to-screen latency remain manual; IPC flush is not rendering. Existing releases must remain byte-identical. Next: validate packaging tests, commit the isolated reviewed source, build it, run runtime/integrity gates, then fast-forward-push main and version tag and create a new Pre-release without touching older drafts/assets.
+
 ### Completed milestone — MorChranslator product rename (2026-10-12)
 
 - **Delivery complete:** projects, namespaces, assemblies, Windows metadata, settings/subtitle/tray titles, icon, frontend, scripts/CI and current documentation use **MorChranslator**. Compatibility exceptions and original attribution are explicit; no algorithms, subtitle GUIDs or event meanings changed. No GitHub push or Release.
